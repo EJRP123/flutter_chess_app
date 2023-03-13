@@ -1,0 +1,6 @@
+src/fenstring.h.gch
+src/fenString.o
+src/moveGenerator.h.gch
+src/moveGenerator.o
+out
+.vs

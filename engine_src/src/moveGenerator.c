@@ -292,13 +292,13 @@ void extendRayIfCheckKing(
     int lastIndexPiece = state->boardArray[lastIndex];
     if (lastIndexPiece != (state->colorToGo | KING)) return;
     // King is in check by this piece and we need to generate the square behind the king
-    int newRay[BOARD_LENGTH] = { [0 ... 7] = -1 };
+    int newRay[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
     getRay(lastIndex, 0, newRay);
     appendIntListToAttackedSquare(newRay);
 }
 
 void calculateAttackSquares() {
-    int attackingSquares[BOARD_LENGTH] = { [0 ... 7] = -1 }; 
+    int attackingSquares[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
     for (int currentIndex = 0; currentIndex < BOARD_SIZE; currentIndex++) {
         const int piece = state->boardArray[currentIndex];
         if (piece == NONE) continue;
@@ -422,7 +422,7 @@ bool isKingIndexLegal(int targetSquare) {
 }
 
 int addSlidingPiecePinned(void (*getRay)(int index, int colorNotToInclude, int result[BOARD_LENGTH]), int dangerousSlidingPiece) {
-    int firstRay[BOARD_LENGTH] = { [0 ... 7] = -1 };
+    int firstRay[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
     getRay(friendlyKingIndex, 0, firstRay);
     if (firstRay[0] == -1) { 
         return -1; 
@@ -441,7 +441,7 @@ int addSlidingPiecePinned(void (*getRay)(int index, int colorNotToInclude, int r
     }
 
     if ((firstLastSquareContent & pieceColorBitMask) == state->colorToGo) {
-        int secondRay[BOARD_LENGTH] = { [0 ... 7] = -1 };
+        int secondRay[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
         getRay(firstLastSquare, 0, secondRay);
         if (secondRay[0] == -1) { 
             return -1; 
@@ -536,7 +536,7 @@ void generateKingMoves(Moves* validMoves) {
     if (attackedSquares[friendlyKingIndex]) { inCheck = true; }
     if (doubleAttackedSquares[friendlyKingIndex]) { inDoubleCheck = true; }
 
-    int pseudoLegalMoves[BOARD_LENGTH] = { [0 ... 7] = -1 }; 
+    int pseudoLegalMoves[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
     getKingMoves(friendlyKingIndex, pseudoLegalMoves);
     for (int i = 0; i < 8; i++) {
         const int targetSquare = pseudoLegalMoves[i];
@@ -575,7 +575,7 @@ void generateKingMoves(Moves* validMoves) {
 
     if (checkingPieceDirection != NULL) {
         // A sliding piece is checking the king
-        int result[BOARD_LENGTH] = { [0 ... 7] = -1 };
+        int result[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
         checkingPieceDirection(friendlyKingIndex, 0, result);
         appendIntListToBoolList(result, protectKingSquares);
         return;
@@ -596,7 +596,7 @@ void generateKingMoves(Moves* validMoves) {
     }
     
     // Checking for knights 
-    int potentialKnigths[BOARD_LENGTH] = { [0 ... 7] = -1 };
+    int potentialKnigths[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
     getKnightMoves(friendlyKingIndex, potentialKnigths);
     for (int i = 0; i < BOARD_LENGTH; i++) {
         int index = potentialKnigths[i];
@@ -625,8 +625,8 @@ void checkUnPinnedEnPassant(int from, Moves* validMoves) {
     int squareInFromOfEnPassant = state->colorToGo == BLACK ? 
         state->enPassantTargetSquare - 8 :
         state->enPassantTargetSquare + 8;
-    int leftRow[BOARD_LENGTH] = { [0 ... 7] = -1 };
-    int rightRow[BOARD_LENGTH] = { [0 ... 7] = -1 };
+    int leftRow[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
+    int rightRow[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
     getLeftNetRay(squareInFromOfEnPassant, 0, leftRow);
     getRightNetRay(squareInFromOfEnPassant, 0, rightRow);
 
@@ -665,7 +665,7 @@ void checkUnPinnedEnPassant(int from, Moves* validMoves) {
         // second case
         // Note: Already checked if the king is on the same line in the first condition
         
-        int squareAfterPawn[BOARD_LENGTH] = { [0 ... 7] = -1 };
+        int squareAfterPawn[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
         if (lastLeftRow == from) {
             attackingPieceDirection = getRightNetRay;
             getLeftNetRay(from, 0, squareAfterPawn);
@@ -690,7 +690,7 @@ void checkUnPinnedEnPassant(int from, Moves* validMoves) {
         indexToCalculateAttackingPiece = squareInFromOfEnPassant;
     } 
 
-    int potentialAttackingPieceIndex[BOARD_LENGTH] = { [0 ... 7] = -1 };
+    int potentialAttackingPieceIndex[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
     attackingPieceDirection(indexToCalculateAttackingPiece, 0, potentialAttackingPieceIndex);
 
     int lastPotentialAttackingPiece = -1;
@@ -849,7 +849,7 @@ void getPawnPseudoLegalMoveIndex(int index, bool result[BOARD_SIZE]) {
 }
 
 void generateSupportingPiecesMoves(Moves* validMoves) {
-    int rays[BOARD_LENGTH] = { [0 ... 7] = -1 };
+    int rays[BOARD_LENGTH] = { -1, -1, -1, -1, -1, -1, -1, -1 };
     for (int currentIndex = 0; currentIndex < BOARD_SIZE; currentIndex++) {
         const int piece = state->boardArray[currentIndex];
         if (piece == NONE) continue;
@@ -979,7 +979,7 @@ Moves* getValidMoves(GameState *gameState) {
     
     if (state->turnsForFiftyRule >= 50) {
         noMemoryLeaksPlease();
-        appendMove(0, 0, 0, &validMoves); // This is the `draw` move
+        appendMove(0, 0, STALEMATE, &validMoves); // This is the `draw` move
         return simplifyMoves(validMoves);
     }
     

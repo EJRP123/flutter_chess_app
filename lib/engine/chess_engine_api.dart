@@ -1,6 +1,7 @@
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'c_chess_engine_library.dart';
+import 'dart:io' show Platform;
 
 enum MoveFlag {
   NOFlAG,
@@ -113,7 +114,13 @@ class ChessEngine {
   late ChessEngineLibrary _library;
 
   ChessEngine._internal() {
-    const libPath = "lib/engine/libchess_engine.so.1.0.0";
+    if (!Platform.isWindows && !Platform.isLinux) {
+      throw Exception("This app only supports Linux and Windows...");
+    }
+    var libPath = "lib/engine/libchess_engine.so.1.0.0";
+    if (Platform.isWindows) {
+      libPath = "lib/engine/chess_engine.dll";
+    }
     _library = ChessEngineLibrary(DynamicLibrary.open(libPath));
   }
 
