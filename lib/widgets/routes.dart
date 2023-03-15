@@ -15,29 +15,30 @@ class MainMenu extends StatelessWidget {
         "assets/images/${PIECE.asString(PIECE.WHITE | PIECE.KING).toLowerCase().replaceAll(" ", "_")}.svg";
     String blackAsset =
         "assets/images/${PIECE.asString(PIECE.BLACK | PIECE.KING).toLowerCase().replaceAll(" ", "_")}.svg";
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        Expanded(
-          child: GestureDetector(
-              onTap: () {
-                Navigator.push(context, getRouteBuilder(PIECE.WHITE));
-              },
-              child: SvgPicture.asset(whiteAsset,
-                  semanticsLabel: PIECE.asString(PIECE.WHITE | PIECE.KING))
+    return Container(
+      color: Colors.grey,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          Expanded(
+            child: GestureDetector(
+                onTap: () {
+                  Navigator.push(context, getRouteBuilder(PIECE.WHITE));
+                },
+                child: SvgPicture.asset(whiteAsset,
+                    semanticsLabel: PIECE.asString(PIECE.WHITE | PIECE.KING))),
           ),
-        ),
-        Expanded(
-          child: GestureDetector(
-              onTap: () {
-                Navigator.push(context, getRouteBuilder(PIECE.BLACK));
-              },
-              child:SvgPicture.asset(blackAsset,
-                  semanticsLabel: PIECE.asString(PIECE.BLACK | PIECE.KING)),
-        )
-        )
-      ],
+          Expanded(
+              child: GestureDetector(
+            onTap: () {
+              Navigator.push(context, getRouteBuilder(PIECE.BLACK));
+            },
+            child: SvgPicture.asset(blackAsset,
+                semanticsLabel: PIECE.asString(PIECE.BLACK | PIECE.KING)),
+          ))
+        ],
+      ),
     );
   }
 
@@ -70,11 +71,11 @@ class GamePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.black38,
-        title: Text(
-            "Playing ${PIECE.asString(pieceColor)} against AI"),
+        backgroundColor: Colors.blueGrey,
+        title: Text("Playing ${PIECE.asString(pieceColor)} against AI"),
       ),
-      body: Board(pieceColor),
+      body: Center(child: AspectRatio(aspectRatio: 1.0, child: Board(pieceColor))),
+      backgroundColor: Colors.blueGrey,
     );
   }
 }

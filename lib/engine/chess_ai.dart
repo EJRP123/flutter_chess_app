@@ -24,7 +24,7 @@ class ChessAi {
   final int _rookValue = 500;
   final int _queenValue = 900;
 
-  final int _mobilityWeight = 5;
+  final int _mobilityWeight = 1; // Mobility is not that important
 
   final int _positiveInfinity = 9999999;
   final int _negativeInfinity = -9999999;
@@ -50,8 +50,7 @@ class ChessAi {
         bestEval = eval;
         moves.clear();
         moves.add(move);
-      }
-      if (eval == bestEval) {
+      } else if (eval == bestEval) {
         moves.add(move);
       }
     }

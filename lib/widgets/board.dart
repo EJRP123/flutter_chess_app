@@ -31,6 +31,17 @@ class Board extends StatefulWidget {
 // - Make the app not freeze when the ai is calculating moves (DONE)
 // - Make a way to undo moves (DONE)
 // - Draggable pieces (DONE)
+
+// - TODO: Add repeating moves draw (If three fen strings are the same in a game then it is a draw)
+// Note: This will require to mostly rework the engine
+// The engine will need to track the positions and see if the position happened more than once
+// I think that the idea that I go for right now is to let the user provide the
+// list of played positions in the argument of the `getValidMoves` function
+// I will not modify the signature of the GameState struct to include
+// a list of played positions because copying that list will become expensive
+// when you pass it around by value
+
+
 // - Timer
 //    - Position starter and current fen string
 //    - Depth of computer
@@ -227,7 +238,7 @@ class _BoardState extends State<Board> {
 
   void resetBoard() {
     setState(() {
-      _gameState.copyFrom(startGameState());
+      _gameState.copyFrom(ChessGameState.startingGameState);
       _currentLegalMoves = _engine.getMovesFromState(_gameState);
       _clickedPieceIndex = -1;
       _playerMoves.clear();

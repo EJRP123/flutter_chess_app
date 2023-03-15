@@ -58,6 +58,8 @@ dev_dependencies:
 flutter:
   assets:
     - assets/images/
+    - assets/engine/chess_engine.dll
+    - assets/engine/libchess_engine.so.1.0.0
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

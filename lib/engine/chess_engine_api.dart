@@ -1,7 +1,8 @@
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
 import 'c_chess_engine_library.dart';
-import 'dart:io' show Platform;
+import 'dart:io';
 
 enum MoveFlag {
   NOFlAG,
@@ -17,7 +18,7 @@ enum MoveFlag {
   CHECMATE;
 
   static MoveFlag fromInt(int flag) {
-    if (flag > 10 || flag < 0) return MoveFlag.NOFlAG;
+    if (flag > MoveFlag.values.length || flag < 0) return MoveFlag.NOFlAG;
     return MoveFlag.values[flag];
   }
 }
@@ -38,22 +39,17 @@ class ChessMove {
 class ChessGameState {
   final List<int> boardArray;
   int colorToGo;
-  int castlinPerm;
+  int castlingPerm;
   int enPassantTargetSquare;
   int turnsForFiftyRule;
   int nbMoves;
 
-  ChessGameState(this.boardArray, this.colorToGo, this.castlinPerm,
+  ChessGameState(this.boardArray, this.colorToGo, this.castlingPerm,
       this.enPassantTargetSquare, this.nbMoves, this.turnsForFiftyRule);
 
   ChessGameState copy() {
-    return ChessGameState(
-        _copyList(boardArray),
-        colorToGo,
-        castlinPerm,
-        enPassantTargetSquare,
-        nbMoves,
-        turnsForFiftyRule);
+    return ChessGameState(_copyList(boardArray), colorToGo, castlingPerm,
+        enPassantTargetSquare, nbMoves, turnsForFiftyRule);
   }
 
   void copyFrom(ChessGameState src) {
@@ -61,23 +57,28 @@ class ChessGameState {
       boardArray[i] = src.boardArray[i];
     }
     colorToGo = src.colorToGo;
-    castlinPerm = src.castlinPerm;
+    castlingPerm = src.castlingPerm;
     enPassantTargetSquare = src.enPassantTargetSquare;
     nbMoves = src.nbMoves;
     turnsForFiftyRule = src.turnsForFiftyRule;
   }
 
   static ChessGameState fromFenString(String fenString) {
-    final reg = RegExp("((([prnbqkPRNBQK12345678]*/){7})([prnbqkPRNBQK12345678]*)) (w|b) ((K?Q?k?q?)|-) (([abcdefgh][36])|-) (\\d*) (\\d*)");
-    if (!reg.hasMatch(fenString)) throw ArgumentError("The fen string $fenString is not formatted properly!");
+    final reg = RegExp(
+        "((([prnbqkPRNBQK12345678]*/){7})([prnbqkPRNBQK12345678]*)) (w|b) ((K?Q?k?q?)|-) (([abcdefgh][36])|-) (\\d*) (\\d*)");
+    if (!reg.hasMatch(fenString)) {
+      throw ArgumentError(
+          "The fen string $fenString is not formatted properly!");
+    }
     if (fenString.length > 100) {
       // This condition is to remove buffer overflow in the c code
-      throw ArgumentError("This program cannot parse fen string with a bigger length than 100");
+      throw ArgumentError(
+          "This program cannot parse fen string with a bigger length than 100");
     }
     final c_fenString = fenString.toNativeUtf8().cast<Char>();
 
-    final c_state = ChessEngine()._library
-        .setGameStateFromFenString(c_fenString, nullptr);
+    final c_state =
+        ChessEngine()._library.setGameStateFromFenString(c_fenString, nullptr);
     malloc.free(c_fenString);
     final boardArray = List.filled(BOARD_SIZE, 0);
 
@@ -91,8 +92,7 @@ class ChessGameState {
         c_state.ref.castlinPerm,
         c_state.ref.enPassantTargetSquare,
         c_state.ref.turnsForFiftyRule,
-        c_state.ref.nbMoves
-    );
+        c_state.ref.nbMoves);
 
     malloc.free(c_state.ref.boardArray);
     malloc.free(c_state);
@@ -100,10 +100,11 @@ class ChessGameState {
     return result;
   }
 
-  static const startingFenString = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  static const startingFenString =
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-  static ChessGameState startingGameState = ChessGameState.fromFenString(startingFenString);
-
+  static ChessGameState startingGameState =
+      ChessGameState.fromFenString(startingFenString);
 }
 
 List<int> _copyList(List<int> list) {
@@ -117,10 +118,27 @@ class ChessEngine {
     if (!Platform.isWindows && !Platform.isLinux) {
       throw Exception("This app only supports Linux and Windows...");
     }
-    var libPath = "lib/engine/libchess_engine.so.1.0.0";
-    if (Platform.isWindows) {
-      libPath = "lib/engine/chess_engine.dll";
+    var libPath = "";
+    final libName =
+        Platform.isWindows ? "chess_engine.dll" : "libchess_engine.so.1.0.0";
+    final seperator = Platform.isWindows ? "\\" : "/";
+    if (kReleaseMode) {
+      // I'm on release mode, absolute linking
+      final String localLib = [
+        'data',
+        'flutter_assets',
+        'assets',
+        'engine',
+        libName
+      ].join(seperator);
+      libPath = [Directory(Platform.resolvedExecutable).parent.path, localLib]
+          .join(seperator);
+    } else {
+      // I'm on debug mode, local linking
+      var path = Directory.current.path;
+      libPath = '$path/assets/engine/$libName';
     }
+
     _library = ChessEngineLibrary(DynamicLibrary.open(libPath));
   }
 
@@ -145,7 +163,7 @@ class ChessEngine {
     final state = _library.createState(
         boardPointer,
         gameState.colorToGo,
-        gameState.castlinPerm,
+        gameState.castlingPerm,
         gameState.enPassantTargetSquare,
         gameState.turnsForFiftyRule,
         gameState.nbMoves);
@@ -172,67 +190,3 @@ class ChessEngine {
     return result;
   }
 }
-
-String pieceToFenChar(int piece) {
-  var char = "";
-  switch (piece & pieceTypeBitMask) {
-    case PIECE.PAWN: char = "p"; break;
-    case PIECE.KNIGHT: char = "n"; break;
-    case PIECE.BISHOP: char = "b"; break;
-    case PIECE.ROOK: char = "r"; break;
-    case PIECE.QUEEN: char = "q"; break;
-    case PIECE.KING: char = "k"; break;
-  }
-  if ((piece & pieceColorBitMask) == PIECE.WHITE) {
-    char = char.toUpperCase();
-  }
-  return char;
-}
-
-int getPieceFromChar(String fenChar) {
-  int pieceColor = fenChar.toLowerCase() == fenChar ? PIECE.BLACK : PIECE.WHITE;
-  switch (fenChar.toLowerCase()) {
-    case "r":
-      return pieceColor | PIECE.ROOK;
-    case "n":
-      return pieceColor | PIECE.KNIGHT;
-    case "b":
-      return pieceColor | PIECE.BISHOP;
-    case "q":
-      return pieceColor | PIECE.QUEEN;
-    case "k":
-      return pieceColor | PIECE.KING;
-    case "p":
-      return pieceColor | PIECE.PAWN;
-    default:
-      return PIECE.NONE;
-  }
-}
-
-ChessGameState startGameState() {
-  return ChessGameState(
-      [
-        "r","n","b","q","k","b","n","r",
-        "p","p","p","p","p","p","p","p",
-        "-","-","-","-","-","-","-","-",
-        "-","-","-","-","-","-","-","-",
-        "-","-","-","-","-","-","-","-",
-        "-","-","-","-","-","-","-","-",
-        "P","P","P","P","P","P","P","P",
-        "R","N","B","Q","K","B","N","R",
-      ].map((e) => getPieceFromChar(e)).toList(),
-      PIECE.WHITE,
-      15, // 0b1111
-      -1,
-      1,
-      0);
-}
-
-// "r","n","b","q","k","b","n","r",
-// "p","p","p","p","p","p","p","p",
-// "-","-","-","-","-","-","-","-",
-// "-","-","-","-","-","-","-","-",
-// "-","-","-","-","-","-","-","-",
-// "-","-","-","-","-","-","-","-",
-// "P","P","P","P","P","P","P","P",
-// "R","N","B","Q","K","B","N","R",

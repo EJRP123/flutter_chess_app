@@ -10,7 +10,7 @@ class ChessMoveUpdater {
   ChessMoveUpdater._internal();
 
   void _updateCastlePerm(int pieceToMove, int from, ChessGameState state) {
-    if (state.castlinPerm == 0) return;
+    if (state.castlingPerm == 0) return;
     bool kingWhiteRookHasMoved = false;
     bool queenWhiteRookHasMoved = false;
     bool kingBlackRookHasMoved = false;
@@ -39,22 +39,22 @@ class ChessMoveUpdater {
     }
 
     if (whiteKingHasMoved) {
-      state.castlinPerm &= 3; // The white king cannot caste (3 0b0011)
+      state.castlingPerm &= 3; // The white king cannot caste (3 0b0011)
     }
     if (blackKingHasMoved) {
-      state.castlinPerm &= 12; // The black king cannot castle (12 0b1100)
+      state.castlingPerm &= 12; // The black king cannot castle (12 0b1100)
     }
     if (kingWhiteRookHasMoved) {
-      state.castlinPerm &= 7; // Removing white king side (7 0b0111)
+      state.castlingPerm &= 7; // Removing white king side (7 0b0111)
     }
     if (queenWhiteRookHasMoved) {
-      state.castlinPerm &= 11; // Removing white queen side (11 0b1011)
+      state.castlingPerm &= 11; // Removing white queen side (11 0b1011)
     }
     if (kingBlackRookHasMoved) {
-      state.castlinPerm &= 13; // Removing black king side (13 0b1101)
+      state.castlingPerm &= 13; // Removing black king side (13 0b1101)
     }
     if (queenBlackRookHasMoved) {
-      state.castlinPerm &= 14; // Removing black queen side (14 0b1110)
+      state.castlingPerm &= 14; // Removing black queen side (14 0b1110)
     }
   }
 
