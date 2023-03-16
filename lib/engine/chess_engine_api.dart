@@ -103,7 +103,7 @@ class ChessGameState {
   static const startingFenString =
       "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-  static ChessGameState startingGameState =
+  static ChessGameState startingGameState() =>
       ChessGameState.fromFenString(startingFenString);
 }
 

@@ -64,7 +64,7 @@ class _BoardState extends State<Board> {
   @override
   void initState() {
     super.initState();
-    _gameState = ChessGameState.startingGameState;
+    _gameState = ChessGameState.startingGameState();
     _engine = ChessEngine();
     _highlightedSquares = List.filled(81, false);
     _currentLegalMoves = _engine.getMovesFromState(_gameState);
@@ -238,7 +238,7 @@ class _BoardState extends State<Board> {
 
   void resetBoard() {
     setState(() {
-      _gameState.copyFrom(ChessGameState.startingGameState);
+      _gameState.copyFrom(ChessGameState.startingGameState());
       _currentLegalMoves = _engine.getMovesFromState(_gameState);
       _clickedPieceIndex = -1;
       _playerMoves.clear();

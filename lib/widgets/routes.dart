@@ -15,14 +15,14 @@ class MainMenu extends StatelessWidget {
         "assets/images/${PIECE.asString(PIECE.WHITE | PIECE.KING).toLowerCase().replaceAll(" ", "_")}.svg";
     String blackAsset =
         "assets/images/${PIECE.asString(PIECE.BLACK | PIECE.KING).toLowerCase().replaceAll(" ", "_")}.svg";
-    return Container(
+    return Material(
       color: Colors.grey,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           Expanded(
-            child: GestureDetector(
+            child: InkWell(
                 onTap: () {
                   Navigator.push(context, getRouteBuilder(PIECE.WHITE));
                 },
@@ -30,7 +30,7 @@ class MainMenu extends StatelessWidget {
                     semanticsLabel: PIECE.asString(PIECE.WHITE | PIECE.KING))),
           ),
           Expanded(
-              child: GestureDetector(
+              child: InkWell(
             onTap: () {
               Navigator.push(context, getRouteBuilder(PIECE.BLACK));
             },
