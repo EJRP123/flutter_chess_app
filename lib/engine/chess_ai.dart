@@ -1,12 +1,20 @@
 import 'dart:math';
 
-import 'package:chess_app/engine/c_chess_engine_library.dart';
+import 'package:chess_app/engine/chess_engine_ffi.dart';
 import 'package:chess_app/engine/chess_engine_api.dart';
 import 'package:chess_app/engine/gameEmulator.dart';
 
 // I need to do this to use the Flutter compute function
-ChessMove getMoveFromAi(ChessGameState state) {
-  return ChessAi().getMoveToPlay(state);
+ChessMove getMoveFromAi(AiMoveParam param) {
+  return ChessAi().getMoveToPlay(param.state, List.from(param.previousStates));
+}
+
+// I need to do this to use the Flutter compute function with multiple param
+class AiMoveParam {
+  final ChessGameState state;
+  final List<ChessGameState> previousStates;
+
+  AiMoveParam(this.state, this.previousStates);
 }
 
 class ChessAi {
@@ -29,33 +37,30 @@ class ChessAi {
   final int _positiveInfinity = 9999999;
   final int _negativeInfinity = -9999999;
 
-  final maxDepth = 3;
-
-  ChessMove getMoveToPlay(ChessGameState state) {
-    final legalMoves = engine.getMovesFromState(state);
+  ChessMove getMoveToPlay(
+      ChessGameState state, List<ChessGameState> previousStates) {
+    const maxDepth = 3;
+    final legalMoves = engine.getMovesFromState(state, previousStates);
     var bestEval = _negativeInfinity;
 
-    final moves = <ChessMove>[];
+    final bestMoves = <ChessMove>[];
 
     for (final move in legalMoves) {
       final newState = state.copy();
-      ChessMoveUpdater().makeMove(move, newState);
-      final statesBeforeDepth = List<ChessGameState?>.generate(
-          maxDepth + 1, (index) => null,
-          growable: false);
-      statesBeforeDepth[maxDepth] = newState;
-      int eval = -1 * _search(maxDepth, _negativeInfinity, _positiveInfinity,
-              statesBeforeDepth);
+      ChessMoveUpdater.makeMove(move, newState);
+      previousStates.add(state); // Because this is now a previous move
+      int eval = -1 *
+          _search(maxDepth, maxDepth, _negativeInfinity, _positiveInfinity, previousStates);
       if (eval > bestEval) {
         bestEval = eval;
-        moves.clear();
-        moves.add(move);
+        bestMoves.clear();
+        bestMoves.add(move);
       } else if (eval == bestEval) {
-        moves.add(move);
+        bestMoves.add(move);
       }
     }
-    moves.shuffle(); // So that we don't get always the same move for the same position
-    return moves.first;
+    // So that we don't get always the same move for the same position
+    return bestMoves[Random().nextInt(bestMoves.length)];
   }
 
   int _pieceToValue(int piece) {
@@ -77,7 +82,8 @@ class ChessAi {
 
   // Only checks at material and mobility
   // Note: Does not look into king safety, center control, ect...
-  int evaluatePosition(ChessGameState state) {
+  int evaluatePosition(
+      ChessGameState state, List<ChessGameState> previousStates) {
     final colorToGo = state.colorToGo;
     // material
     final whiteMaterial = state.boardArray
@@ -89,39 +95,50 @@ class ChessAi {
         .map((e) => _pieceToValue(e))
         .reduce((value, element) => value + element);
     final materialScore = whiteMaterial - blackMaterial;
-    // mobility
-    state.colorToGo = PIECE.BLACK;
-    final blackLegalMoves = engine.getMovesFromState(state).length;
-    state.colorToGo = PIECE.WHITE;
-    final whiteLegalMoves = engine.getMovesFromState(state).length;
-    final mobilityScore = (whiteLegalMoves - blackLegalMoves) * _mobilityWeight;
+    // // mobility
+    // state.colorToGo = PIECE.BLACK;
+    // final blackLegalMoves =
+    //     engine.getMovesFromState(state, previousStates).length;
+    // state.colorToGo = PIECE.WHITE;
+    // final whiteLegalMoves =
+    //     engine.getMovesFromState(state, previousStates).length;
+    final mobilityScore = 0; // (whiteLegalMoves - blackLegalMoves) * _mobilityWeight;
 
-    final whoToMove = colorToGo == PIECE.WHITE ? 1 : -1;
-    return (materialScore + mobilityScore) * whoToMove;
+    return (materialScore + mobilityScore);
   }
 
-  int _search(
-      int depth, int alpha, int beta, List<ChessGameState?> statesBeforeDepth) {
+  int _search(int depth, int maxDepth, int alpha, int beta,
+      List<ChessGameState> previousStates) {
+    final currentState = previousStates.isNotEmpty
+        ? previousStates.last
+        : ChessGameState.startingGameState();
     if (depth == 0) {
-      return evaluatePosition(statesBeforeDepth[0]!);
+      return evaluatePosition(currentState.copy(), previousStates);
     }
 
-    final previousState = statesBeforeDepth[depth]!;
-    final moves = engine.getMovesFromState(previousState);
-    _orderMoves(moves, previousState);
+    final moves = engine.getMovesFromState(currentState, previousStates);
+    _orderMoves(moves, currentState);
+
     if (moves.length == 1) {
       if (moves[0].flag == MoveFlag.CHECMATE) {
         return _negativeInfinity;
-      } else if (moves[0].flag == MoveFlag.STALEMATE) {
+      } else if (moves[0].flag == MoveFlag.STALEMATE ||
+          moves[0].flag == MoveFlag.DRAW) {
         return 0;
       }
     }
 
-    for (final move in moves) {
-      final newState = previousState.copy();
-      ChessMoveUpdater().makeMove(move, newState);
-      statesBeforeDepth[depth - 1] = newState;
-      final evaluation = -_search(depth - 1, -beta, -alpha, statesBeforeDepth);
+    for (int i = 0; i < moves.length; i++) {
+      final move = moves[i];
+      final newState = currentState.copy();
+      ChessMoveUpdater.makeMove(move, newState);
+      previousStates.add(newState);
+      final evaluation =
+          -_search(depth - 1, maxDepth, -beta, -alpha, previousStates);
+
+      // Removing moves done in this depth
+      previousStates.removeLast();
+
       if (evaluation >= beta) {
         return beta;
       }

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 
-import '../engine/c_chess_engine_library.dart';
+
 import '../engine/chess_engine_api.dart';
+import '../engine/chess_engine_ffi.dart';
 
 class PromotionDialog extends StatelessWidget {
   final int color;
@@ -27,10 +28,10 @@ class PromotionDialog extends StatelessWidget {
 
   Widget getPieceChoice(int piece, MoveFlag flag) {
     String assetName =
-        "assets/images/${PIECE.asString(piece).toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/${Piece.asString(piece).toLowerCase().replaceAll(" ", "_")}.svg";
     return GestureDetector(
       onTap: () => Navigator.pop(contextOfPopup, flag),
-      child: SvgPicture.asset(assetName, semanticsLabel: PIECE.asString(piece)),
+      child: SvgPicture.asset(assetName, semanticsLabel: Piece.asString(piece)),
     );
   }
 }

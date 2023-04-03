@@ -43,7 +43,5 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# CMake
-/engine_src/build/
-
 /.idea/
+ffigenConfig.yaml

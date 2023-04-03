@@ -1,15 +1,9 @@
-import 'c_chess_engine_library.dart';
+import 'chess_engine_ffi.dart';
 import 'chess_engine_api.dart';
 
 class ChessMoveUpdater {
 
-  static final ChessMoveUpdater _singleton = ChessMoveUpdater._internal();
-  factory ChessMoveUpdater() {
-    return _singleton;
-  }
-  ChessMoveUpdater._internal();
-
-  void _updateCastlePerm(int pieceToMove, int from, ChessGameState state) {
+  static void _updateCastlePerm(int pieceToMove, int from, ChessGameState state) {
     if (state.castlingPerm == 0) return;
     bool kingWhiteRookHasMoved = false;
     bool queenWhiteRookHasMoved = false;
@@ -58,7 +52,7 @@ class ChessMoveUpdater {
     }
   }
 
-  void _updateFiftyFiftyMove(int pieceToMove, int to, ChessGameState state) {
+  static void _updateFiftyFiftyMove(int pieceToMove, int to, ChessGameState state) {
     if ((pieceToMove & pieceTypeBitMask) == PIECE.PAWN) {
       state.turnsForFiftyRule = 0; // A pawn has moved
     } else if (state.boardArray[to] != PIECE.NONE) {
@@ -66,7 +60,7 @@ class ChessMoveUpdater {
     }
   }
 
-  void makeMove(ChessMove move, ChessGameState state) {
+  static void makeMove(ChessMove move, ChessGameState state) {
     int from = move.startSquare;
     int to = move.endSquare;
     MoveFlag flag = move.flag;

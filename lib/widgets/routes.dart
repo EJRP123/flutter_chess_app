@@ -2,7 +2,8 @@ import 'package:chess_app/widgets/board.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 
-import '../engine/c_chess_engine_library.dart';
+import '../engine/chess_engine_ffi.dart';
+import '../engine/chess_engine_api.dart';
 
 class MainMenu extends StatelessWidget {
   const MainMenu({Key? key}) : super(key: key);
@@ -12,9 +13,9 @@ class MainMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String whiteAsset =
-        "assets/images/${PIECE.asString(PIECE.WHITE | PIECE.KING).toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/${Piece.asString(PIECE.WHITE | PIECE.KING).toLowerCase().replaceAll(" ", "_")}.svg";
     String blackAsset =
-        "assets/images/${PIECE.asString(PIECE.BLACK | PIECE.KING).toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/${Piece.asString(PIECE.BLACK | PIECE.KING).toLowerCase().replaceAll(" ", "_")}.svg";
     return Material(
       color: Colors.grey,
       child: Row(
@@ -27,7 +28,7 @@ class MainMenu extends StatelessWidget {
                   Navigator.push(context, getRouteBuilder(PIECE.WHITE));
                 },
                 child: SvgPicture.asset(whiteAsset,
-                    semanticsLabel: PIECE.asString(PIECE.WHITE | PIECE.KING))),
+                    semanticsLabel: Piece.asString(PIECE.WHITE | PIECE.KING))),
           ),
           Expanded(
               child: InkWell(
@@ -35,7 +36,7 @@ class MainMenu extends StatelessWidget {
               Navigator.push(context, getRouteBuilder(PIECE.BLACK));
             },
             child: SvgPicture.asset(blackAsset,
-                semanticsLabel: PIECE.asString(PIECE.BLACK | PIECE.KING)),
+                semanticsLabel: Piece.asString(PIECE.BLACK | PIECE.KING)),
           ))
         ],
       ),
@@ -72,9 +73,9 @@ class GamePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blueGrey,
-        title: Text("Playing ${PIECE.asString(pieceColor)} against AI"),
+        title: Text("Playing ${Piece.asString(pieceColor)} against AI"),
       ),
-      body: Center(child: AspectRatio(aspectRatio: 1.0, child: Board(pieceColor))),
+      body: Center(child: Board(pieceColor)),
       backgroundColor: Colors.blueGrey,
     );
   }

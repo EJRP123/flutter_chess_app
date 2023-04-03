@@ -1,7 +1,7 @@
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
-import 'c_chess_engine_library.dart';
+import 'chess_engine_ffi.dart';
 import 'dart:io';
 
 enum MoveFlag {
@@ -15,7 +15,8 @@ enum MoveFlag {
   PROMOTE_TO_ROOK,
   PROMOTE_TO_BISHOP,
   STALEMATE,
-  CHECMATE;
+  CHECMATE,
+  DRAW;
 
   static MoveFlag fromInt(int flag) {
     if (flag > MoveFlag.values.length || flag < 0) return MoveFlag.NOFlAG;
@@ -62,6 +63,28 @@ class ChessGameState {
     nbMoves = src.nbMoves;
     turnsForFiftyRule = src.turnsForFiftyRule;
   }
+
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChessGameState &&
+          runtimeType == other.runtimeType &&
+          boardArray == other.boardArray &&
+          colorToGo == other.colorToGo &&
+          castlingPerm == other.castlingPerm &&
+          enPassantTargetSquare == other.enPassantTargetSquare &&
+          turnsForFiftyRule == other.turnsForFiftyRule &&
+          nbMoves == other.nbMoves;
+
+  @override
+  int get hashCode =>
+      boardArray.hashCode ^
+      colorToGo.hashCode ^
+      castlingPerm.hashCode ^
+      enPassantTargetSquare.hashCode ^
+      turnsForFiftyRule.hashCode ^
+      nbMoves.hashCode;
 
   static ChessGameState fromFenString(String fenString) {
     final reg = RegExp(
@@ -112,7 +135,7 @@ List<int> _copyList(List<int> list) {
 }
 
 class ChessEngine {
-  late ChessEngineLibrary _library;
+  late NativeLibrary _library;
 
   ChessEngine._internal() {
     if (!Platform.isWindows && !Platform.isLinux) {
@@ -120,8 +143,8 @@ class ChessEngine {
     }
     var libPath = "";
     final libName =
-        Platform.isWindows ? "chess_engine.dll" : "libchess_engine.so.1.0.0";
-    final seperator = Platform.isWindows ? "\\" : "/";
+        Platform.isWindows ? "chess_engine.dll" : "chess_engine.so.1.0.0";
+    final separator = Platform.isWindows ? "\\" : "/";
     if (kReleaseMode) {
       // I'm on release mode, absolute linking
       final String localLib = [
@@ -130,16 +153,16 @@ class ChessEngine {
         'assets',
         'engine',
         libName
-      ].join(seperator);
+      ].join(separator);
       libPath = [Directory(Platform.resolvedExecutable).parent.path, localLib]
-          .join(seperator);
+          .join(separator);
     } else {
       // I'm on debug mode, local linking
-      var path = Directory.current.path;
+      final path = Directory.current.path;
       libPath = '$path/assets/engine/$libName';
     }
 
-    _library = ChessEngineLibrary(DynamicLibrary.open(libPath));
+    _library = NativeLibrary(DynamicLibrary.open(libPath));
   }
 
   static ChessEngine? _onlyInstance;
@@ -150,29 +173,40 @@ class ChessEngine {
   List<ChessMove> getMovesFromFenString(String fenString) {
     final fenStringUTF8 = fenString.toNativeUtf8().cast<Char>();
     final state = _library.setGameStateFromFenString(fenStringUTF8, nullptr);
-    calloc.free(fenStringUTF8);
-    return getMovesFromPointerState(state);
+    malloc.free(fenStringUTF8);
+    return getMovesFromPointerState(state, nullptr, 0);
   }
 
-  List<ChessMove> getMovesFromState(ChessGameState gameState) {
-    final boardPointer = malloc.allocate<Int>(sizeOf<Int>() * 64);
-    for (int i = 0; i < 64; i++) {
-      boardPointer.elementAt(i).value = gameState.boardArray[i];
+  List<ChessMove> getMovesFromState(
+      ChessGameState gameState, List<ChessGameState> previousStates) {
+    final state = dartStateToCState(gameState);
+    if (previousStates.isEmpty) {
+      return getMovesFromPointerState(state, nullptr, 0);
+    }
+    final pointerPreviousStates =
+        malloc.allocate<GameState>(sizeOf<GameState>() * previousStates.length);
+
+    for (int i = 0; i < previousStates.length; i++) {
+      final pointerToState = dartStateToCState(previousStates[i]);
+      pointerPreviousStates.elementAt(i).ref = pointerToState.ref;
     }
 
-    final state = _library.createState(
-        boardPointer,
-        gameState.colorToGo,
-        gameState.castlingPerm,
-        gameState.enPassantTargetSquare,
-        gameState.turnsForFiftyRule,
-        gameState.nbMoves);
-    return getMovesFromPointerState(state);
+    return getMovesFromPointerState(
+        state, pointerPreviousStates, previousStates.length);
   }
 
-  List<ChessMove> getMovesFromPointerState(Pointer<gameState> state) {
-    final moves = _library.getValidMoves(state);
+  List<ChessMove> getMovesFromPointerState(Pointer<gameState> state,
+      Pointer<GameState> previousStates, int numberOfPreviousStates) {
+    final moves =
+        _library.getValidMoves(state, previousStates, numberOfPreviousStates);
 
+    // No memory leaks Please <(^uwu^)>
+    malloc.free(state.ref.boardArray);
+    malloc.free(state);
+    for (int i = 0; i < numberOfPreviousStates; i++) {
+      malloc.free(previousStates[i].boardArray);
+    }
+    malloc.free(previousStates);
     final result = <ChessMove>[];
     Moves totalMoves = moves.ref;
     for (int i = 0; i < totalMoves.count; i++) {
@@ -186,7 +220,79 @@ class ChessEngine {
 
       result.add(moveObj);
     }
-    calloc.free(moves);
+    malloc.free(moves.ref.items);
+    malloc.free(moves);
     return result;
+  }
+
+  Pointer<gameState> dartStateToCState(ChessGameState state) {
+    final boardPointer = malloc.allocate<Int>(sizeOf<Int>() * 64);
+    for (int i = 0; i < 64; i++) {
+      boardPointer.elementAt(i).value = state.boardArray[i];
+    }
+
+    return _library.createState(
+        boardPointer,
+        state.colorToGo,
+        state.castlingPerm,
+        state.enPassantTargetSquare,
+        state.turnsForFiftyRule,
+        state.nbMoves);
+  }
+}
+
+extension Piece on PIECE {
+
+  static String asString(int piece) {
+    int color = piece & pieceColorBitMask;
+    int type = piece & pieceTypeBitMask;
+    String pieceColor = color == PIECE.WHITE ? "White" : "Black";
+
+    switch (type) {
+      case PIECE.KING:
+        return "$pieceColor king";
+      case PIECE.QUEEN:
+        return "$pieceColor queen";
+      case PIECE.KNIGHT:
+        return "$pieceColor knight";
+      case PIECE.BISHOP:
+        return "$pieceColor bishop";
+      case PIECE.ROOK:
+        return "$pieceColor rook";
+      case PIECE.PAWN:
+        return "$pieceColor pawn";
+      default:
+        return color == 0 ? "None" : pieceColor;
+    }
+  }
+}
+
+extension FLAG on Flag {
+
+  static String asString(int flag) {
+    switch (flag) {
+      case Flag.EN_PASSANT:
+        return "En Passant";
+      case Flag.DOUBLE_PAWN_PUSH:
+        return "Double Pawn Push";
+      case Flag.KING_SIDE_CASTLING:
+        return "King Side Castling";
+      case Flag.QUEEN_SIDE_CASTLING:
+        return "Queen Side Castling";
+      case Flag.PROMOTE_TO_QUEEN:
+        return "Promote To Queen";
+      case Flag.PROMOTE_TO_KNIGHT:
+        return "Promote To Knight";
+      case Flag.PROMOTE_TO_ROOK:
+        return "Promote To Rook";
+      case Flag.PROMOTE_TO_BISHOP:
+        return "Promote To Bishop";
+      case Flag.CHECKMATE:
+        return "Checkmate";
+      case Flag.STALEMATE:
+        return "Stalemate";
+      default:
+        return "No Flag";
+    }
   }
 }
