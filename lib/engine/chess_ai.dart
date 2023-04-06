@@ -4,6 +4,20 @@ import 'package:chess_app/engine/chess_engine_ffi.dart';
 import 'package:chess_app/engine/chess_engine_api.dart';
 import 'package:chess_app/engine/gameEmulator.dart';
 
+void main() {
+  ChessGameState startingState =
+      ChessGameState.fromFenString("rnbqkbnr/pppppp1p/8/6p1/5P2/8/PPPPP1PP/RNBQKBNR w KQkq g6 0 1");
+  print(startingState.boardAsString());
+  final aiMove =
+      ChessAi().getMoveToPlay(startingState, List.empty(growable: true));
+  print(
+      '${Piece.asString(startingState.boardArray[aiMove.startSquare])} (${aiMove.startSquare}) to ${Piece.asString(startingState.boardArray[aiMove.endSquare])} (${aiMove.endSquare})');
+}
+
+String moveToString(ChessMove move, ChessGameState state) {
+  return '${Piece.asString(state.boardArray[move.startSquare])} (${move.startSquare}) to ${Piece.asString(state.boardArray[move.endSquare])} (${move.endSquare})';
+}
+
 // I need to do this to use the Flutter compute function
 ChessMove getMoveFromAi(AiMoveParam param) {
   return ChessAi().getMoveToPlay(param.state, List.from(param.previousStates));
@@ -39,7 +53,7 @@ class ChessAi {
 
   ChessMove getMoveToPlay(
       ChessGameState state, List<ChessGameState> previousStates) {
-    const maxDepth = 3;
+    const maxDepth = 1;
     final legalMoves = engine.getMovesFromState(state, previousStates);
     var bestEval = _negativeInfinity;
 
@@ -49,8 +63,7 @@ class ChessAi {
       final newState = state.copy();
       ChessMoveUpdater.makeMove(move, newState);
       previousStates.add(state); // Because this is now a previous move
-      int eval = -1 *
-          _search(maxDepth, maxDepth, _negativeInfinity, _positiveInfinity, previousStates);
+      int eval = _search(maxDepth, maxDepth, newState, previousStates) * -1;
       if (eval > bestEval) {
         bestEval = eval;
         bestMoves.clear();
@@ -80,8 +93,9 @@ class ChessAi {
     }
   }
 
-  // Only checks at material and mobility
-  // Note: Does not look into king safety, center control, ect...
+  /// Only checks at material and mobility
+  /// Does not look into king safety, center control, ect...
+  /// Returns a positive value if white is better else it is a negative value
   int evaluatePosition(
       ChessGameState state, List<ChessGameState> previousStates) {
     final colorToGo = state.colorToGo;
@@ -104,16 +118,14 @@ class ChessAi {
     //     engine.getMovesFromState(state, previousStates).length;
     final mobilityScore = 0; // (whiteLegalMoves - blackLegalMoves) * _mobilityWeight;
 
-    return (materialScore + mobilityScore);
+    return materialScore + mobilityScore;
   }
 
-  int _search(int depth, int maxDepth, int alpha, int beta,
+  int _search(int depth, int maxDepth, ChessGameState currentState,
       List<ChessGameState> previousStates) {
-    final currentState = previousStates.isNotEmpty
-        ? previousStates.last
-        : ChessGameState.startingGameState();
     if (depth == 0) {
-      return evaluatePosition(currentState.copy(), previousStates);
+      final perspective = currentState.colorToGo == PIECE.WHITE ? 1 : -1;
+      return evaluatePosition(currentState, previousStates) * perspective;
     }
 
     final moves = engine.getMovesFromState(currentState, previousStates);
@@ -128,28 +140,26 @@ class ChessAi {
       }
     }
 
+    var bestEvaluation = _negativeInfinity;
+
     for (int i = 0; i < moves.length; i++) {
       final move = moves[i];
       final newState = currentState.copy();
+      previousStates.add(currentState.copy());
       ChessMoveUpdater.makeMove(move, newState);
-      previousStates.add(newState);
       final evaluation =
-          -_search(depth - 1, maxDepth, -beta, -alpha, previousStates);
-
+          _search(depth - 1, maxDepth, newState, previousStates) * -1;
       // Removing moves done in this depth
       previousStates.removeLast();
-
-      if (evaluation >= beta) {
-        return beta;
-      }
-      alpha = max(alpha, evaluation);
+      bestEvaluation = max(bestEvaluation, evaluation);
     }
 
-    return alpha;
+    return bestEvaluation;
   }
 
   final _capturedPieceValueMultiplier = 10;
 
+  // TODO: Bug here, seems like this is duplicating moves
   void _orderMoves(List<ChessMove> moves, ChessGameState state) {
     final order = <int, int>{};
     for (int i = 0; i < moves.length; i++) {

@@ -1,6 +1,6 @@
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
-import 'package:flutter/foundation.dart';
+// import 'package:flutter/foundation.dart';
 import 'chess_engine_ffi.dart';
 import 'dart:io';
 
@@ -64,6 +64,18 @@ class ChessGameState {
     turnsForFiftyRule = src.turnsForFiftyRule;
   }
 
+  String boardAsString() {
+    String result = "";
+    for (int i = 0; i < 64; i++) {
+      final fenChar = Piece.toFenChar(boardArray[i]);
+      result += "|";
+      result += (fenChar.isNotEmpty) ? " $fenChar " : "   ";
+      if ((i + 1) % 8 == 0) {
+        result += " |\n";
+      }
+    }
+    return result;
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -145,7 +157,7 @@ class ChessEngine {
     final libName =
         Platform.isWindows ? "chess_engine.dll" : "chess_engine.so.1.0.0";
     final separator = Platform.isWindows ? "\\" : "/";
-    if (kReleaseMode) {
+    if (false) { // kReleaseMode
       // I'm on release mode, absolute linking
       final String localLib = [
         'data',
@@ -263,6 +275,30 @@ extension Piece on PIECE {
         return "$pieceColor pawn";
       default:
         return color == 0 ? "None" : pieceColor;
+    }
+  }
+
+  static String toFenChar(int piece) {
+    int color = piece & pieceColorBitMask;
+    int type = piece & pieceTypeBitMask;
+    String caseLambda(String fenChar) {
+      return color == PIECE.WHITE ? fenChar.toUpperCase() : fenChar;
+    }
+    switch (type) {
+      case PIECE.KING:
+        return caseLambda("k");
+      case PIECE.QUEEN:
+        return caseLambda("q");
+      case PIECE.KNIGHT:
+        return caseLambda("n");
+      case PIECE.BISHOP:
+        return caseLambda("b");
+      case PIECE.ROOK:
+        return caseLambda("r");
+      case PIECE.PAWN:
+        return caseLambda("p");
+      default:
+        return "";
     }
   }
 }

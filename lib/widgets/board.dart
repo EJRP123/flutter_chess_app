@@ -32,8 +32,6 @@ class Board extends StatefulWidget {
 // - Make a way to undo moves (DONE)
 // - Draggable pieces (DONE)
 // - Add repeating moves draw (DONE)
-// - TODO: Fix ai giving wrong evaluation
-// - TODO: FIx undo move being wrong when clicking undo last move in game end dialog
 // - Add own ai evaluation
 // - Timer
 // - Add multiple depth strategy
@@ -56,7 +54,7 @@ class _BoardState extends State<Board> {
   @override
   void initState() {
     super.initState();
-    _gameState = ChessGameState.startingGameState();
+    _gameState = ChessGameState.fromFenString("rnbqkbnr/pppppp1p/8/6p1/5P2/8/PPPPP1PP/RNBQKBNR w KQkq g6 0 2");
     _engine = ChessEngine();
     _movesMade = LinkedHashMap<ChessMove, ChessGameState>();
     _highlightedSquares = List.filled(81, false);
@@ -92,61 +90,56 @@ class _BoardState extends State<Board> {
           return null;
         })
       },
-      child: Row(
-        children: [
-          Text("Evaluation: ${ChessAi().evaluatePosition(_gameState, _previousStates)}"),
-          AspectRatio(
-            aspectRatio: 1.0,
-            child: Transform.rotate(
-              angle: _aiPieceColor == PIECE.WHITE ? pi : 0,
-              child: LayoutGrid(
-                  columnSizes: List.filled(8, 8.fr),
-                  rowSizes: List.filled(8, 8.fr),
-                  children: List.generate(64, (index) {
-                    if (index % 8 == 0) changeColor = !changeColor;
-                    var color = (index % 2 == 0)
-                        ? (changeColor)
-                            ? widget.color1
-                            : widget.color2
-                        : (changeColor)
-                            ? widget.color2
-                            : widget.color1;
-                    if (_movesMade.keys.isNotEmpty) {
-                      if (index == _movesMade.keys.last.startSquare ||
-                          index == _movesMade.keys.last.endSquare) {
-                        color = Color.alphaBlend(
-                            Colors.yellowAccent.withOpacity(0.5), color);
+      child: AspectRatio(
+        aspectRatio: 1.0,
+        child: Transform.rotate(
+          angle: _aiPieceColor == PIECE.WHITE ? pi : 0,
+          child: LayoutGrid(
+              columnSizes: List.filled(8, 8.fr),
+              rowSizes: List.filled(8, 8.fr),
+              children: List.generate(64, (index) {
+                if (index % 8 == 0) changeColor = !changeColor;
+                var color = (index % 2 == 0)
+                    ? (changeColor)
+                        ? widget.color1
+                        : widget.color2
+                    : (changeColor)
+                        ? widget.color2
+                        : widget.color1;
+                if (_movesMade.keys.isNotEmpty) {
+                  if (index == _movesMade.keys.last.startSquare ||
+                      index == _movesMade.keys.last.endSquare) {
+                    color = Color.alphaBlend(
+                        Colors.yellowAccent.withOpacity(0.5), color);
+                  }
+                }
+                final int piece = _gameState.boardArray[index];
+                final isDraggable = piece & pieceColorBitMask != _aiPieceColor;
+                final isHighlighted = _highlightedSquares[index];
+                return GestureDetector(
+                    onTap: () {
+                      // This is at the top so that this behaviour triggers first
+                      if (isHighlighted) {
+                        // We clicked a highlighted squares
+                        clickedHighlightedSquare(index);
+                        return; // To get no await bugs
                       }
-                    }
-                    final int piece = _gameState.boardArray[index];
-                    final isDraggable = piece & pieceColorBitMask != _aiPieceColor;
-                    final isHighlighted = _highlightedSquares[index];
-                    return GestureDetector(
-                        onTap: () {
-                          // This is at the top so that this behaviour triggers first
-                          if (isHighlighted) {
-                            // We clicked a highlighted squares
-                            clickedHighlightedSquare(index);
-                            return; // To get no await bugs
-                          }
 
-                          if (piece != PIECE.NONE && isDraggable) {
-                            // We clicked our own piece
-                            clickedAPiece(index);
-                          } else {
-                            // To get a clean board back
-                            setState(() {
-                              removeAllHighlightedSquares();
-                              _clickedPieceIndex = -1;
-                            });
-                          }
-                        },
-                        child: Square(index, piece, color, isHighlighted, isDraggable,
-                            _aiPieceColor == PIECE.WHITE, droppedPiece));
-                  })),
-            ),
-          ),
-        ],
+                      if (piece != PIECE.NONE && isDraggable) {
+                        // We clicked our own piece
+                        clickedAPiece(index);
+                      } else {
+                        // To get a clean board back
+                        setState(() {
+                          removeAllHighlightedSquares();
+                          _clickedPieceIndex = -1;
+                        });
+                      }
+                    },
+                    child: Square(index, piece, color, isHighlighted, isDraggable,
+                        _aiPieceColor == PIECE.WHITE, droppedPiece));
+              })),
+        ),
       ),
     );
   }
@@ -269,12 +262,17 @@ class _BoardState extends State<Board> {
 
   void undoMove() {
     if (_movesMade.length <= 1) return;
-    _movesMade.remove(_movesMade.keys.last); // Undoing the ai move
-    _movesMade.remove(_movesMade.keys.last); // Undoing the player move
-    if (_movesMade.isNotEmpty) {
+    if (_gameState.colorToGo == _aiPieceColor) {
       _gameState.copyFrom(_movesMade.values.last);
+      _movesMade.remove(_movesMade.keys.last); // Undoing the player move
     } else {
-      _gameState.copyFrom(ChessGameState.startingGameState());
+      _movesMade.remove(_movesMade.keys.last); // Undoing the ai move
+      if (_movesMade.isNotEmpty) {
+        _gameState.copyFrom(_movesMade.values.last);
+        _movesMade.remove(_movesMade.keys.last); // Undoing the player move
+      } else {
+        _gameState.copyFrom(ChessGameState.startingGameState());
+      }
     }
     
     setState(() {
