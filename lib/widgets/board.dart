@@ -1,6 +1,4 @@
 import 'dart:collection';
-import 'dart:ffi' hide Size;
-import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -10,7 +8,6 @@ import 'package:flutter_layout_grid/flutter_layout_grid.dart';
 import 'package:flutter_svg/svg.dart';
 
 import '../engine/c_engine_api.dart';
-import '../engine/chess_ai.dart';
 import 'dialogs.dart';
 import 'draggable_widget.dart';
 import 'routes.dart';

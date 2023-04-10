@@ -68,7 +68,6 @@ enum PieceColor {
   int get value => this != none ? (index + 1) * 8 : 0;
 }
 
-// TODO: Make pieces instances not static to have methods like piece color not static
 class Piece {
   static const int pieceColorBitMask = _pieceColorBitMask;
   static const int pieceTypeBitMask = _pieceTypeBitMask;
