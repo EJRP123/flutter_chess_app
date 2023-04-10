@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 
-
-import '../engine/chess_engine_api.dart';
-import '../engine/chess_engine_ffi.dart';
+import '../engine/c_engine_api.dart';
 
 class PromotionDialog extends StatelessWidget {
-  final int color;
+  final PieceColor color;
   final BuildContext contextOfPopup;
 
   const PromotionDialog(
@@ -18,20 +16,20 @@ class PromotionDialog extends StatelessWidget {
     return AlertDialog(
       actionsAlignment: MainAxisAlignment.center,
       actions: [
-        getPieceChoice(color | PIECE.QUEEN, MoveFlag.PROMOTE_TO_QUEEN),
-        getPieceChoice(color | PIECE.KNIGHT, MoveFlag.PROMOTE_TO_KNIGHT),
-        getPieceChoice(color | PIECE.ROOK, MoveFlag.PROMOTE_TO_ROOK),
-        getPieceChoice(color | PIECE.BISHOP, MoveFlag.PROMOTE_TO_BISHOP),
+        getPieceChoice(Piece.fromEnum(color, PieceType.queen), MoveFlag.PROMOTE_TO_QUEEN),
+        getPieceChoice(Piece.fromEnum(color, PieceType.knight), MoveFlag.PROMOTE_TO_KNIGHT),
+        getPieceChoice(Piece.fromEnum(color, PieceType.rook), MoveFlag.PROMOTE_TO_ROOK),
+        getPieceChoice(Piece.fromEnum(color, PieceType.bishop), MoveFlag.PROMOTE_TO_BISHOP),
       ],
     );
   }
 
-  Widget getPieceChoice(int piece, MoveFlag flag) {
+  Widget getPieceChoice(Piece piece, MoveFlag flag) {
     String assetName =
-        "assets/images/${Piece.asString(piece).toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/${piece.toString().toLowerCase().replaceAll(" ", "_")}.svg";
     return GestureDetector(
       onTap: () => Navigator.pop(contextOfPopup, flag),
-      child: SvgPicture.asset(assetName, semanticsLabel: Piece.asString(piece)),
+      child: SvgPicture.asset(assetName, semanticsLabel: piece.toString()),
     );
   }
 }

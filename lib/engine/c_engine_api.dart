@@ -1,8 +1,22 @@
-import 'dart:ffi';
+library c_engine_api;
+
+import 'dart:ffi' as ffi;
+
 import 'package:ffi/ffi.dart';
-// import 'package:flutter/foundation.dart';
-import 'chess_engine_ffi.dart';
-import 'dart:io';
+
+export 'c_engine_api.dart'
+    show
+        ChessEngine,
+        ChessGameState,
+        Piece,
+        ChessMove,
+        MoveFlag,
+        PieceColor,
+        PieceType;
+
+part 'c_engine_ffi.dart';
+// part of 'package:chess_app/engine/c_engine_api.dart'; // Line added by EJRP
+part 'game_emulator.dart';
 
 enum MoveFlag {
   NOFlAG,
@@ -22,6 +36,103 @@ enum MoveFlag {
     if (flag > MoveFlag.values.length || flag < 0) return MoveFlag.NOFlAG;
     return MoveFlag.values[flag];
   }
+
+  @override
+  String toString() {
+    return name
+        .toLowerCase()
+        .replaceAll("_", " ")
+        .split(" ")
+        .map((e) => e.substring(0, 1).toUpperCase() + e.substring(1))
+        .join(" ");
+  }
+}
+
+enum PieceType {
+  none,
+  king,
+  queen,
+  knight,
+  bishop,
+  rook,
+  pawn;
+
+  int get value => index; // For consistency with PieceColor
+}
+
+enum PieceColor {
+  white,
+  black,
+  none;
+
+  int get value => this != none ? (index + 1) * 8 : 0;
+}
+
+// TODO: Make pieces instances not static to have methods like piece color not static
+class Piece {
+  static const int pieceColorBitMask = _pieceColorBitMask;
+  static const int pieceTypeBitMask = _pieceTypeBitMask;
+
+  late final int value;
+  Piece(this.value);
+
+  Piece.fromEnum(PieceColor color, PieceType type) {
+    value = color.value | type.value;
+  }
+
+  PieceColor get color {
+    if (value != 0) {
+      return PieceColor.values[(value & pieceColorBitMask) ~/ 8 - 1];
+    } else {
+      return PieceColor.none;
+    }
+  }
+  PieceType get type => PieceType.values[value & pieceTypeBitMask];
+
+  String fenChar() {
+    String caseLambda(String fenChar) {
+      return color == PieceColor.white ? fenChar.toUpperCase() : fenChar;
+    }
+
+    switch (type) {
+      case PieceType.king:
+        return caseLambda("k");
+      case PieceType.queen:
+        return caseLambda("q");
+      case PieceType.knight:
+        return caseLambda("n");
+      case PieceType.bishop:
+        return caseLambda("b");
+      case PieceType.rook:
+        return caseLambda("r");
+      case PieceType.pawn:
+        return caseLambda("p");
+      default:
+        return "";
+    }
+  }
+
+  @override
+  String toString() {
+    String pieceColor = color == PieceColor.white ? "White" : "Black";
+
+    switch (type) {
+      case PieceType.king:
+        return "$pieceColor king";
+      case PieceType.queen:
+        return "$pieceColor queen";
+      case PieceType.knight:
+        return "$pieceColor knight";
+      case PieceType.bishop:
+        return "$pieceColor bishop";
+      case PieceType.rook:
+        return "$pieceColor rook";
+      case PieceType.pawn:
+        return "$pieceColor pawn";
+      default:
+        return "None";
+    }
+  }
 }
 
 class ChessMove {
@@ -31,12 +142,20 @@ class ChessMove {
 
   const ChessMove(this.startSquare, this.endSquare, this.flag);
 
+  String toStringWithBoard(ChessGameState state) {
+    return '${Piece(state.boardArray[startSquare])} ($startSquare) '
+        'to ${Piece(state.boardArray[endSquare])} ($endSquare)';
+  }
+
   @override
   String toString() {
     return 'ChessMove(startSquare: $startSquare, endSquare: $endSquare, flag: $flag)';
   }
 }
 
+// TODO: Replace the List<int> with List<Piece>
+// TODO: Replace colorToGo with PieceColor
+// This will impact performance but like if you want to go fast use C
 class ChessGameState {
   final List<int> boardArray;
   int colorToGo;
@@ -54,7 +173,7 @@ class ChessGameState {
   }
 
   void copyFrom(ChessGameState src) {
-    for (int i = 0; i < BOARD_SIZE; i++) {
+    for (int i = 0; i < _BOARD_SIZE; i++) {
       boardArray[i] = src.boardArray[i];
     }
     colorToGo = src.colorToGo;
@@ -64,10 +183,14 @@ class ChessGameState {
     turnsForFiftyRule = src.turnsForFiftyRule;
   }
 
+  void makeMove(ChessMove move) {
+    _makeMove(move, this);
+  }
+
   String boardAsString() {
     String result = "";
     for (int i = 0; i < 64; i++) {
-      final fenChar = Piece.toFenChar(boardArray[i]);
+      final fenChar = Piece(boardArray[i]).fenChar();
       result += "|";
       result += (fenChar.isNotEmpty) ? " $fenChar " : "   ";
       if ((i + 1) % 8 == 0) {
@@ -110,14 +233,15 @@ class ChessGameState {
       throw ArgumentError(
           "This program cannot parse fen string with a bigger length than 100");
     }
-    final c_fenString = fenString.toNativeUtf8().cast<Char>();
+    final c_fenString = fenString.toNativeUtf8().cast<ffi.Char>();
 
-    final c_state =
-        ChessEngine()._library.setGameStateFromFenString(c_fenString, nullptr);
+    final c_state = ChessEngine()
+        ._library
+        .setGameStateFromFenString(c_fenString, ffi.nullptr);
     malloc.free(c_fenString);
-    final boardArray = List.filled(BOARD_SIZE, 0);
+    final boardArray = List.filled(_BOARD_SIZE, 0);
 
-    for (int i = 0; i < BOARD_SIZE; i++) {
+    for (int i = 0; i < _BOARD_SIZE; i++) {
       boardArray[i] = c_state.ref.boardArray.elementAt(i).value;
     }
 
@@ -147,56 +271,40 @@ List<int> _copyList(List<int> list) {
 }
 
 class ChessEngine {
-  late NativeLibrary _library;
+  late _NativeLibrary _library;
 
-  ChessEngine._internal() {
-    if (!Platform.isWindows && !Platform.isLinux) {
-      throw Exception("This app only supports Linux and Windows...");
+  ChessEngine.init(ffi.DynamicLibrary dynamicLibrary) {
+    if (_onlyInstance == null) {
+      _library = _NativeLibrary(dynamicLibrary);
+      _onlyInstance = this;
     }
-    var libPath = "";
-    final libName =
-        Platform.isWindows ? "chess_engine.dll" : "chess_engine.so.1.0.0";
-    final separator = Platform.isWindows ? "\\" : "/";
-    if (false) { // kReleaseMode
-      // I'm on release mode, absolute linking
-      final String localLib = [
-        'data',
-        'flutter_assets',
-        'assets',
-        'engine',
-        libName
-      ].join(separator);
-      libPath = [Directory(Platform.resolvedExecutable).parent.path, localLib]
-          .join(separator);
-    } else {
-      // I'm on debug mode, local linking
-      final path = Directory.current.path;
-      libPath = '$path/assets/engine/$libName';
-    }
-
-    _library = NativeLibrary(DynamicLibrary.open(libPath));
   }
 
   static ChessEngine? _onlyInstance;
   factory ChessEngine() {
-    return _onlyInstance ??= ChessEngine._internal();
+    if (_onlyInstance == null) {
+      throw StateError(
+          "You need to call ChessEngine.init() and provide a dynamic library before you can use the engine!");
+    }
+    return _onlyInstance!;
   }
 
   List<ChessMove> getMovesFromFenString(String fenString) {
-    final fenStringUTF8 = fenString.toNativeUtf8().cast<Char>();
-    final state = _library.setGameStateFromFenString(fenStringUTF8, nullptr);
+    final fenStringUTF8 = fenString.toNativeUtf8().cast<ffi.Char>();
+    final state =
+        _library.setGameStateFromFenString(fenStringUTF8, ffi.nullptr);
     malloc.free(fenStringUTF8);
-    return getMovesFromPointerState(state, nullptr, 0);
+    return getMovesFromPointerState(state, ffi.nullptr, 0);
   }
 
   List<ChessMove> getMovesFromState(
       ChessGameState gameState, List<ChessGameState> previousStates) {
     final state = dartStateToCState(gameState);
     if (previousStates.isEmpty) {
-      return getMovesFromPointerState(state, nullptr, 0);
+      return getMovesFromPointerState(state, ffi.nullptr, 0);
     }
-    final pointerPreviousStates =
-        malloc.allocate<GameState>(sizeOf<GameState>() * previousStates.length);
+    final pointerPreviousStates = malloc
+        .allocate<_GameState>(ffi.sizeOf<_GameState>() * previousStates.length);
 
     for (int i = 0; i < previousStates.length; i++) {
       final pointerToState = dartStateToCState(previousStates[i]);
@@ -207,8 +315,8 @@ class ChessEngine {
         state, pointerPreviousStates, previousStates.length);
   }
 
-  List<ChessMove> getMovesFromPointerState(Pointer<gameState> state,
-      Pointer<GameState> previousStates, int numberOfPreviousStates) {
+  List<ChessMove> getMovesFromPointerState(ffi.Pointer<_gameState> state,
+      ffi.Pointer<_GameState> previousStates, int numberOfPreviousStates) {
     final moves =
         _library.getValidMoves(state, previousStates, numberOfPreviousStates);
 
@@ -220,7 +328,7 @@ class ChessEngine {
     }
     malloc.free(previousStates);
     final result = <ChessMove>[];
-    Moves totalMoves = moves.ref;
+    _Moves totalMoves = moves.ref;
     for (int i = 0; i < totalMoves.count; i++) {
       int move = totalMoves.items.elementAt(i).value;
 
@@ -237,8 +345,8 @@ class ChessEngine {
     return result;
   }
 
-  Pointer<gameState> dartStateToCState(ChessGameState state) {
-    final boardPointer = malloc.allocate<Int>(sizeOf<Int>() * 64);
+  ffi.Pointer<_gameState> dartStateToCState(ChessGameState state) {
+    final boardPointer = malloc.allocate<ffi.Int>(ffi.sizeOf<ffi.Int>() * 64);
     for (int i = 0; i < 64; i++) {
       boardPointer.elementAt(i).value = state.boardArray[i];
     }
@@ -251,84 +359,9 @@ class ChessEngine {
         state.turnsForFiftyRule,
         state.nbMoves);
   }
-}
 
-extension Piece on PIECE {
-
-  static String asString(int piece) {
-    int color = piece & pieceColorBitMask;
-    int type = piece & pieceTypeBitMask;
-    String pieceColor = color == PIECE.WHITE ? "White" : "Black";
-
-    switch (type) {
-      case PIECE.KING:
-        return "$pieceColor king";
-      case PIECE.QUEEN:
-        return "$pieceColor queen";
-      case PIECE.KNIGHT:
-        return "$pieceColor knight";
-      case PIECE.BISHOP:
-        return "$pieceColor bishop";
-      case PIECE.ROOK:
-        return "$pieceColor rook";
-      case PIECE.PAWN:
-        return "$pieceColor pawn";
-      default:
-        return color == 0 ? "None" : pieceColor;
-    }
-  }
-
-  static String toFenChar(int piece) {
-    int color = piece & pieceColorBitMask;
-    int type = piece & pieceTypeBitMask;
-    String caseLambda(String fenChar) {
-      return color == PIECE.WHITE ? fenChar.toUpperCase() : fenChar;
-    }
-    switch (type) {
-      case PIECE.KING:
-        return caseLambda("k");
-      case PIECE.QUEEN:
-        return caseLambda("q");
-      case PIECE.KNIGHT:
-        return caseLambda("n");
-      case PIECE.BISHOP:
-        return caseLambda("b");
-      case PIECE.ROOK:
-        return caseLambda("r");
-      case PIECE.PAWN:
-        return caseLambda("p");
-      default:
-        return "";
-    }
-  }
-}
-
-extension FLAG on Flag {
-
-  static String asString(int flag) {
-    switch (flag) {
-      case Flag.EN_PASSANT:
-        return "En Passant";
-      case Flag.DOUBLE_PAWN_PUSH:
-        return "Double Pawn Push";
-      case Flag.KING_SIDE_CASTLING:
-        return "King Side Castling";
-      case Flag.QUEEN_SIDE_CASTLING:
-        return "Queen Side Castling";
-      case Flag.PROMOTE_TO_QUEEN:
-        return "Promote To Queen";
-      case Flag.PROMOTE_TO_KNIGHT:
-        return "Promote To Knight";
-      case Flag.PROMOTE_TO_ROOK:
-        return "Promote To Rook";
-      case Flag.PROMOTE_TO_BISHOP:
-        return "Promote To Bishop";
-      case Flag.CHECKMATE:
-        return "Checkmate";
-      case Flag.STALEMATE:
-        return "Stalemate";
-      default:
-        return "No Flag";
-    }
+  @override
+  String toString() {
+    return "ChessEngine()";
   }
 }

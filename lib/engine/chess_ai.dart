@@ -1,44 +1,26 @@
+library chess_ai;
+
+import 'dart:collection';
+import 'dart:developer' as dev;
 import 'dart:math';
 
-import 'package:chess_app/engine/chess_engine_ffi.dart';
-import 'package:chess_app/engine/chess_engine_api.dart';
-import 'package:chess_app/engine/gameEmulator.dart';
+import 'chess_engine.dart';
 
-void main() {
-  ChessGameState startingState =
-      ChessGameState.fromFenString("rnbqkbnr/pppppp1p/8/6p1/5P2/8/PPPPP1PP/RNBQKBNR w KQkq g6 0 1");
-  print(startingState.boardAsString());
-  final aiMove =
-      ChessAi().getMoveToPlay(startingState, List.empty(growable: true));
-  print(
-      '${Piece.asString(startingState.boardArray[aiMove.startSquare])} (${aiMove.startSquare}) to ${Piece.asString(startingState.boardArray[aiMove.endSquare])} (${aiMove.endSquare})');
-}
-
-String moveToString(ChessMove move, ChessGameState state) {
-  return '${Piece.asString(state.boardArray[move.startSquare])} (${move.startSquare}) to ${Piece.asString(state.boardArray[move.endSquare])} (${move.endSquare})';
-}
-
-// I need to do this to use the Flutter compute function
-ChessMove getMoveFromAi(AiMoveParam param) {
-  return ChessAi().getMoveToPlay(param.state, List.from(param.previousStates));
-}
-
-// I need to do this to use the Flutter compute function with multiple param
-class AiMoveParam {
-  final ChessGameState state;
-  final List<ChessGameState> previousStates;
-
-  AiMoveParam(this.state, this.previousStates);
-}
-
+// TODO: Rewrite it in C (even better, in Rust)
 class ChessAi {
-  static final ChessAi _singleton = ChessAi._internal();
-  factory ChessAi() {
-    return _singleton;
-  }
-  ChessAi._internal();
+  late final ChessEngine _engine;
 
-  final engine = ChessEngine();
+  ChessAi() {
+    try {
+      _engine = ChessEngine();
+    } on StateError catch (error, stackTrace) {
+      dev.log(
+          "You need to call ChessEngine.init() in every isolate that use the ChessEngine class",
+          time: DateTime.now(),
+          error: error,
+          stackTrace: stackTrace);
+    }
+  }
 
   final int _pawnValue = 100;
   final int _knightValue = 300;
@@ -53,15 +35,16 @@ class ChessAi {
 
   ChessMove getMoveToPlay(
       ChessGameState state, List<ChessGameState> previousStates) {
-    const maxDepth = 1;
-    final legalMoves = engine.getMovesFromState(state, previousStates);
+    const maxDepth = 2;
+    final List<ChessMove> legalMoves =
+        _engine.getMovesFromState(state, previousStates);
     var bestEval = _negativeInfinity;
 
     final bestMoves = <ChessMove>[];
 
     for (final move in legalMoves) {
       final newState = state.copy();
-      ChessMoveUpdater.makeMove(move, newState);
+      newState.makeMove(move);
       previousStates.add(state); // Because this is now a previous move
       int eval = _search(maxDepth, maxDepth, newState, previousStates) * -1;
       if (eval > bestEval) {
@@ -76,17 +59,17 @@ class ChessAi {
     return bestMoves[Random().nextInt(bestMoves.length)];
   }
 
-  int _pieceToValue(int piece) {
-    switch (piece & pieceTypeBitMask) {
-      case PIECE.PAWN:
+  int _pieceToValue(Piece piece) {
+    switch (piece.type) {
+      case PieceType.pawn:
         return _pawnValue;
-      case PIECE.KNIGHT:
+      case PieceType.knight:
         return _knightValue;
-      case PIECE.BISHOP:
+      case PieceType.bishop:
         return _bishopValue;
-      case PIECE.ROOK:
+      case PieceType.rook:
         return _rookValue;
-      case PIECE.QUEEN:
+      case PieceType.queen:
         return _queenValue;
       default:
         return 0;
@@ -97,26 +80,28 @@ class ChessAi {
   /// Does not look into king safety, center control, ect...
   /// Returns a positive value if white is better else it is a negative value
   int evaluatePosition(
-      ChessGameState state, List<ChessGameState> previousStates) {
-    final colorToGo = state.colorToGo;
+      ChessGameState state) {
     // material
     final whiteMaterial = state.boardArray
-        .where((element) => (element & pieceColorBitMask) == PIECE.WHITE)
-        .map((e) => _pieceToValue(e))
+        .where((element) =>
+            (element & Piece.pieceColorBitMask) == PieceColor.white.value)
+        .map((e) => _pieceToValue(Piece(e)))
         .reduce((value, element) => value + element);
     final blackMaterial = state.boardArray
-        .where((element) => (element & pieceColorBitMask) == PIECE.BLACK)
-        .map((e) => _pieceToValue(e))
+        .where((element) =>
+            (element & Piece.pieceColorBitMask) == PieceColor.black.value)
+        .map((e) => _pieceToValue(Piece(e)))
         .reduce((value, element) => value + element);
     final materialScore = whiteMaterial - blackMaterial;
-    // // mobility
-    // state.colorToGo = PIECE.BLACK;
-    // final blackLegalMoves =
-    //     engine.getMovesFromState(state, previousStates).length;
-    // state.colorToGo = PIECE.WHITE;
-    // final whiteLegalMoves =
-    //     engine.getMovesFromState(state, previousStates).length;
-    final mobilityScore = 0; // (whiteLegalMoves - blackLegalMoves) * _mobilityWeight;
+    // mobility
+    state.colorToGo = PieceColor.black.value;
+    // Note: Previous states not taken into account to speed up the app
+    final blackLegalMoves =
+        _engine.getMovesFromState(state, List.empty(growable: true)).length;
+    state.colorToGo = PieceColor.white.value;
+    final whiteLegalMoves =
+        _engine.getMovesFromState(state, List.empty(growable: true)).length;
+    final mobilityScore = (whiteLegalMoves - blackLegalMoves) * _mobilityWeight;
 
     return materialScore + mobilityScore;
   }
@@ -124,12 +109,13 @@ class ChessAi {
   int _search(int depth, int maxDepth, ChessGameState currentState,
       List<ChessGameState> previousStates) {
     if (depth == 0) {
-      final perspective = currentState.colorToGo == PIECE.WHITE ? 1 : -1;
-      return evaluatePosition(currentState, previousStates) * perspective;
+      final perspective =
+          currentState.colorToGo == PieceColor.white.value ? 1 : -1;
+      return evaluatePosition(currentState.copy()) * perspective;
     }
 
-    final moves = engine.getMovesFromState(currentState, previousStates);
-    _orderMoves(moves, currentState);
+    final moves = _engine.getMovesFromState(currentState, previousStates);
+    orderMoves(moves, currentState);
 
     if (moves.length == 1) {
       if (moves[0].flag == MoveFlag.CHECMATE) {
@@ -146,7 +132,7 @@ class ChessAi {
       final move = moves[i];
       final newState = currentState.copy();
       previousStates.add(currentState.copy());
-      ChessMoveUpdater.makeMove(move, newState);
+      newState.makeMove(move);
       final evaluation =
           _search(depth - 1, maxDepth, newState, previousStates) * -1;
       // Removing moves done in this depth
@@ -159,23 +145,22 @@ class ChessAi {
 
   final _capturedPieceValueMultiplier = 10;
 
-  // TODO: Bug here, seems like this is duplicating moves
-  void _orderMoves(List<ChessMove> moves, ChessGameState state) {
-    final order = <int, int>{};
+  void orderMoves(List<ChessMove> moves, ChessGameState state) {
+    final LinkedHashMap<int, List<int>> order = LinkedHashMap();
     for (int i = 0; i < moves.length; i++) {
       final move = moves[i];
       int score = 0;
-      final pieceThatMoves = state.boardArray[move.startSquare];
-      final pieceToCapture = state.boardArray[move.endSquare];
+      final pieceThatMoves = Piece(state.boardArray[move.startSquare]);
+      final pieceToCapture = Piece(state.boardArray[move.endSquare]);
 
       // Captures a piece with a smaller piece
-      if (pieceToCapture != PIECE.NONE) {
+      if (pieceToCapture.type != PieceType.none) {
         score += _capturedPieceValueMultiplier * _pieceToValue(pieceToCapture) -
             _pieceToValue(pieceThatMoves);
       }
 
       // Promote a piece
-      if ((pieceThatMoves & pieceTypeBitMask) == PIECE.PAWN) {
+      if ((pieceThatMoves.type) == PieceType.pawn) {
         final flag = move.flag;
         if (flag == MoveFlag.PROMOTE_TO_QUEEN) {
           score += _queenValue;
@@ -188,19 +173,26 @@ class ChessAi {
         }
       }
 
-      order[score] = i;
+      if (!order.containsKey(score)) {
+        order[score] = <int>[i];
+      } else {
+        order[score]!.add(i);
+      }
     }
-    _sortMoves(order, moves);
+    sortMoves(order, moves);
   }
 
-  void _sortMoves(Map<int, int> order, List<ChessMove> moves) {
+  void sortMoves(Map<int, List<int>> order, List<ChessMove> moves) {
     // Sort the moves list based on scores
     final copy = List.from(moves);
     final sortedKeys = order.keys.toList();
     sortedKeys.sort((i1, i2) => -i1.compareTo(i2));
     for (int i = 0; i < sortedKeys.length; i++) {
-      final index = order[sortedKeys[i]]!;
-      moves[i] = copy[index];
+      final indices = order[sortedKeys[i]]!;
+      for (int index in indices) {
+        // This works because the keys of order contains all indices of moves
+        moves[index] = copy[index];
+      }
     }
   }
 }
