@@ -19,21 +19,21 @@ part 'c_engine_ffi.dart';
 part 'game_emulator.dart';
 
 enum MoveFlag {
-  NOFlAG,
-  EN_PASSANT,
-  DOUBLE_PAWN_PUSH,
-  KING_SIDE_CASTLING,
-  QUEEN_SIDE_CASTLING,
-  PROMOTE_TO_QUEEN,
-  PROMOTE_TO_KNIGHT,
-  PROMOTE_TO_ROOK,
-  PROMOTE_TO_BISHOP,
-  STALEMATE,
-  CHECMATE,
-  DRAW;
+  noFlag,
+  enPassant,
+  doublePawnPush,
+  kingSideCastling,
+  queenSideCastling,
+  promoteToQueen,
+  promoteToKnight,
+  promoteToRook,
+  promoteToBishop,
+  stalemate,
+  checkmate,
+  draw;
 
   static MoveFlag fromInt(int flag) {
-    if (flag > MoveFlag.values.length || flag < 0) return MoveFlag.NOFlAG;
+    if (flag > MoveFlag.values.length || flag < 0) return MoveFlag.noFlag;
     return MoveFlag.values[flag];
   }
 
@@ -58,36 +58,45 @@ enum PieceType {
   pawn;
 
   int get value => index; // For consistency with PieceColor
+
+  PieceType fromInt(int value) =>
+      PieceType.values[value & Piece.pieceTypeBitMask];
 }
 
 enum PieceColor {
+  none,
   white,
-  black,
-  none;
+  black;
 
-  int get value => this != none ? (index + 1) * 8 : 0;
+  int get value => index * 8;
+  PieceColor get oppositeColor {
+    if (this == PieceColor.black) {
+      return PieceColor.white;
+    } else if (this == PieceColor.white) {
+      return PieceColor.black;
+    } else {
+      return PieceColor.none;
+    }
+  }
+  static PieceColor fromInt(int value) =>
+      PieceColor.values[(value & Piece.pieceColorBitMask) ~/ 8];
 }
 
 class Piece {
   static const int pieceColorBitMask = _pieceColorBitMask;
   static const int pieceTypeBitMask = _pieceTypeBitMask;
+  static final Piece none = Piece.fromInt(0);
 
   late final int value;
-  Piece(this.value);
-
-  Piece.fromEnum(PieceColor color, PieceType type) {
+  Piece(PieceColor color, PieceType type) {
     value = color.value | type.value;
   }
-
-  PieceColor get color {
-    if (value != 0) {
-      return PieceColor.values[(value & pieceColorBitMask) ~/ 8 - 1];
-    } else {
-      return PieceColor.none;
-    }
-  }
+  
+  Piece.fromInt(this.value);
+  
+  PieceColor get color => PieceColor.values[(value & pieceColorBitMask) ~/ 8];
   PieceType get type => PieceType.values[value & pieceTypeBitMask];
-
+  
   String fenChar() {
     String caseLambda(String fenChar) {
       return color == PieceColor.white ? fenChar.toUpperCase() : fenChar;
@@ -110,27 +119,23 @@ class Piece {
         return "";
     }
   }
+  
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Piece &&
+          runtimeType == other.runtimeType &&
+          value == other.value;
+
+  @override
+  int get hashCode => value.hashCode;
 
   @override
   String toString() {
-    String pieceColor = color == PieceColor.white ? "White" : "Black";
-
-    switch (type) {
-      case PieceType.king:
-        return "$pieceColor king";
-      case PieceType.queen:
-        return "$pieceColor queen";
-      case PieceType.knight:
-        return "$pieceColor knight";
-      case PieceType.bishop:
-        return "$pieceColor bishop";
-      case PieceType.rook:
-        return "$pieceColor rook";
-      case PieceType.pawn:
-        return "$pieceColor pawn";
-      default:
-        return "None";
-    }
+    if (this == none) return "none";
+    String pieceColor =
+        color.name.substring(0, 1).toUpperCase() + color.name.substring(1);
+    return "$pieceColor ${type.name}";
   }
 }
 
@@ -142,8 +147,8 @@ class ChessMove {
   const ChessMove(this.startSquare, this.endSquare, this.flag);
 
   String toStringWithBoard(ChessGameState state) {
-    return '${Piece(state.boardArray[startSquare])} ($startSquare) '
-        'to ${Piece(state.boardArray[endSquare])} ($endSquare)';
+    return '${Piece.fromInt(state.boardArray[startSquare].value)} ($startSquare) '
+        'to ${Piece.fromInt(state.boardArray[endSquare].value)} ($endSquare)';
   }
 
   @override
@@ -152,12 +157,11 @@ class ChessMove {
   }
 }
 
-// TODO: Replace the List<int> with List<Piece>
-// TODO: Replace colorToGo with PieceColor
-// This will impact performance but like if you want to go fast use C
+// TODO: Make this class immutable
+// TODO: Replace the int for castling perm by a Castling class
 class ChessGameState {
-  final List<int> boardArray;
-  int colorToGo;
+  final List<Piece> boardArray;
+  PieceColor colorToGo;
   int castlingPerm;
   int enPassantTargetSquare;
   int turnsForFiftyRule;
@@ -189,14 +193,14 @@ class ChessGameState {
   String boardAsString() {
     String result = "";
     for (int i = 0; i < 64; i++) {
-      final fenChar = Piece(boardArray[i]).fenChar();
+      final fenChar = Piece.fromInt(boardArray[i].value).fenChar();
       result += "|";
       result += (fenChar.isNotEmpty) ? " $fenChar " : "   ";
       if ((i + 1) % 8 == 0) {
-        result += " |\n";
+        result += "|\n";
       }
     }
-    return result;
+    return result.substring(0, result.length - 1); // Remove last new line
   }
 
   @override
@@ -232,28 +236,28 @@ class ChessGameState {
       throw ArgumentError(
           "This program cannot parse fen string with a bigger length than 100");
     }
-    final c_fenString = fenString.toNativeUtf8().cast<ffi.Char>();
+    final cFenString = fenString.toNativeUtf8().cast<ffi.Char>();
 
-    final c_state = ChessEngine()
+    final cState = ChessEngine()
         ._library
-        .setGameStateFromFenString(c_fenString, ffi.nullptr);
-    malloc.free(c_fenString);
-    final boardArray = List.filled(_BOARD_SIZE, 0);
+        .setGameStateFromFenString(cFenString, ffi.nullptr);
+    malloc.free(cFenString);
+    final boardArray = List.filled(_BOARD_SIZE, Piece.fromInt(0));
 
     for (int i = 0; i < _BOARD_SIZE; i++) {
-      boardArray[i] = c_state.ref.boardArray.elementAt(i).value;
+      boardArray[i] = Piece.fromInt(cState.ref.boardArray.elementAt(i).value);
     }
 
     final result = ChessGameState(
         boardArray,
-        c_state.ref.colorToGo,
-        c_state.ref.castlinPerm,
-        c_state.ref.enPassantTargetSquare,
-        c_state.ref.turnsForFiftyRule,
-        c_state.ref.nbMoves);
+        PieceColor.fromInt(cState.ref.colorToGo),
+        cState.ref.castlinPerm,
+        cState.ref.enPassantTargetSquare,
+        cState.ref.turnsForFiftyRule,
+        cState.ref.nbMoves);
 
-    malloc.free(c_state.ref.boardArray);
-    malloc.free(c_state);
+    malloc.free(cState.ref.boardArray);
+    malloc.free(cState);
 
     return result;
   }
@@ -265,12 +269,12 @@ class ChessGameState {
       ChessGameState.fromFenString(startingFenString);
 }
 
-List<int> _copyList(List<int> list) {
+List<Piece> _copyList(List<Piece> list) {
   return List.generate(list.length, (index) => list[index], growable: false);
 }
 
 class ChessEngine {
-  late _NativeLibrary _library;
+  late final _NativeLibrary _library;
 
   ChessEngine.init(ffi.DynamicLibrary dynamicLibrary) {
     if (_onlyInstance == null) {
@@ -293,28 +297,28 @@ class ChessEngine {
     final state =
         _library.setGameStateFromFenString(fenStringUTF8, ffi.nullptr);
     malloc.free(fenStringUTF8);
-    return getMovesFromPointerState(state, ffi.nullptr, 0);
+    return _getMovesFromPointerState(state, ffi.nullptr, 0);
   }
 
   List<ChessMove> getMovesFromState(
       ChessGameState gameState, List<ChessGameState> previousStates) {
-    final state = dartStateToCState(gameState);
+    final state = _dartStateToCState(gameState);
     if (previousStates.isEmpty) {
-      return getMovesFromPointerState(state, ffi.nullptr, 0);
+      return _getMovesFromPointerState(state, ffi.nullptr, 0);
     }
     final pointerPreviousStates = malloc
         .allocate<_GameState>(ffi.sizeOf<_GameState>() * previousStates.length);
 
     for (int i = 0; i < previousStates.length; i++) {
-      final pointerToState = dartStateToCState(previousStates[i]);
+      final pointerToState = _dartStateToCState(previousStates[i]);
       pointerPreviousStates.elementAt(i).ref = pointerToState.ref;
     }
 
-    return getMovesFromPointerState(
+    return _getMovesFromPointerState(
         state, pointerPreviousStates, previousStates.length);
   }
 
-  List<ChessMove> getMovesFromPointerState(ffi.Pointer<_gameState> state,
+  List<ChessMove> _getMovesFromPointerState(ffi.Pointer<_GameState> state,
       ffi.Pointer<_GameState> previousStates, int numberOfPreviousStates) {
     final moves =
         _library.getValidMoves(state, previousStates, numberOfPreviousStates);
@@ -344,15 +348,15 @@ class ChessEngine {
     return result;
   }
 
-  ffi.Pointer<_gameState> dartStateToCState(ChessGameState state) {
+  ffi.Pointer<_GameState> _dartStateToCState(ChessGameState state) {
     final boardPointer = malloc.allocate<ffi.Int>(ffi.sizeOf<ffi.Int>() * 64);
     for (int i = 0; i < 64; i++) {
-      boardPointer.elementAt(i).value = state.boardArray[i];
+      boardPointer.elementAt(i).value = state.boardArray[i].value;
     }
 
     return _library.createState(
         boardPointer,
-        state.colorToGo,
+        state.colorToGo.value,
         state.castlingPerm,
         state.enPassantTargetSquare,
         state.turnsForFiftyRule,

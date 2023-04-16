@@ -1,6 +1,6 @@
 part of 'c_engine_api.dart';
 
-void _updateCastlePerm(int pieceToMove, int from, ChessGameState state) {
+void _updateCastlePerm(Piece pieceToMove, int from, ChessGameState state) {
   if (state.castlingPerm == 0) return;
   bool kingWhiteRookHasMoved = false;
   bool queenWhiteRookHasMoved = false;
@@ -11,21 +11,21 @@ void _updateCastlePerm(int pieceToMove, int from, ChessGameState state) {
 
   // We are assuming that the game has started from the beginning
 
-  if (pieceToMove == (PIECE.WHITE | PIECE.ROOK)) {
+  if (pieceToMove == Piece(PieceColor.white, PieceType.rook)) {
     if (from == 63) {
       kingWhiteRookHasMoved = true;
     } else if (from == 56) {
       queenWhiteRookHasMoved = true;
     }
-  } else if (pieceToMove == (PIECE.BLACK | PIECE.ROOK)) {
+  } else if (pieceToMove == Piece(PieceColor.black, PieceType.rook)) {
     if (from == 7) {
       kingBlackRookHasMoved = true;
     } else if (from == 0) {
       queenBlackRookHasMoved = true;
     }
-  } else if (pieceToMove == (PIECE.WHITE | PIECE.KING)) {
+  } else if (pieceToMove == Piece(PieceColor.white, PieceType.king)) {
     whiteKingHasMoved = true;
-  } else if (pieceToMove == (PIECE.BLACK | PIECE.KING)) {
+  } else if (pieceToMove == Piece(PieceColor.black, PieceType.king)) {
     blackKingHasMoved = true;
   }
 
@@ -49,10 +49,10 @@ void _updateCastlePerm(int pieceToMove, int from, ChessGameState state) {
   }
 }
 
-void _updateFiftyFiftyMove(int pieceToMove, int to, ChessGameState state) {
-  if ((pieceToMove & _pieceTypeBitMask) == PIECE.PAWN) {
+void _updateFiftyFiftyMove(Piece pieceToMove, int to, ChessGameState state) {
+  if (pieceToMove.type == PieceType.pawn) {
     state.turnsForFiftyRule = 0; // A pawn has moved
-  } else if (state.boardArray[to] != PIECE.NONE) {
+  } else if (state.boardArray[to] != Piece.none) {
     state.turnsForFiftyRule = 0; // There has been a capture
   }
 }
@@ -62,61 +62,61 @@ void _makeMove(ChessMove move, ChessGameState state) {
   int to = move.endSquare;
   MoveFlag flag = move.flag;
 
-  int pieceToMove = state.boardArray[from];
+  Piece pieceToMove = state.boardArray[from];
   _updateCastlePerm(pieceToMove, from, state);
   _updateFiftyFiftyMove(pieceToMove, to, state);
 
-  state.boardArray[from] = PIECE.NONE;
+  state.boardArray[from] = Piece.none;
   state.boardArray[to] = pieceToMove;
   int rookIndex;
-  int rookPiece;
+  Piece rookPiece;
   int enPassantTargetSquare;
   int pawnIndex;
   switch (flag) {
-    case MoveFlag.NOFlAG:
+    case MoveFlag.noFlag:
       // Just for completeness
       break;
-    case MoveFlag.EN_PASSANT:
-      pawnIndex = state.colorToGo == PIECE.WHITE ? to + 8 : to - 8;
-      state.boardArray[pawnIndex] = PIECE.NONE;
+    case MoveFlag.enPassant:
+      pawnIndex = state.colorToGo == PieceColor.white ? to + 8 : to - 8;
+      state.boardArray[pawnIndex] = Piece.none;
       break;
-    case MoveFlag.DOUBLE_PAWN_PUSH:
-      enPassantTargetSquare = state.colorToGo == PIECE.WHITE ? to + 8 : to - 8;
+    case MoveFlag.doublePawnPush:
+      enPassantTargetSquare = state.colorToGo == PieceColor.white ? to + 8 : to - 8;
       state.enPassantTargetSquare = enPassantTargetSquare;
       break;
-    case MoveFlag.KING_SIDE_CASTLING:
+    case MoveFlag.kingSideCastling:
       rookIndex = from + 3;
       rookPiece = state.boardArray[rookIndex];
-      state.boardArray[rookIndex] = PIECE.NONE;
+      state.boardArray[rookIndex] = Piece.none;
       state.boardArray[to - 1] = rookPiece;
       break;
-    case MoveFlag.QUEEN_SIDE_CASTLING:
+    case MoveFlag.queenSideCastling:
       rookIndex = from - 4;
       rookPiece = state.boardArray[rookIndex];
-      state.boardArray[rookIndex] = PIECE.NONE;
+      state.boardArray[rookIndex] = Piece.none;
       state.boardArray[to + 1] = rookPiece;
       break;
-    case MoveFlag.PROMOTE_TO_QUEEN:
-      state.boardArray[to] = state.colorToGo | PIECE.QUEEN;
+    case MoveFlag.promoteToQueen:
+      state.boardArray[to] = Piece(state.colorToGo, PieceType.queen);
       break;
-    case MoveFlag.PROMOTE_TO_KNIGHT:
-      state.boardArray[to] = state.colorToGo | PIECE.KNIGHT;
+    case MoveFlag.promoteToKnight:
+      state.boardArray[to] = Piece(state.colorToGo, PieceType.knight);
       break;
-    case MoveFlag.PROMOTE_TO_ROOK:
-      state.boardArray[to] = state.colorToGo | PIECE.ROOK;
+    case MoveFlag.promoteToRook:
+      state.boardArray[to] = Piece(state.colorToGo, PieceType.rook);
       break;
-    case MoveFlag.PROMOTE_TO_BISHOP:
-      state.boardArray[to] = state.colorToGo | PIECE.BISHOP;
+    case MoveFlag.promoteToBishop:
+      state.boardArray[to] = Piece(state.colorToGo, PieceType.bishop);
       break;
     default:
       throw ArgumentError("ERROR: Invalid flag $flag");
   }
-  state.colorToGo = state.colorToGo == PIECE.WHITE ? PIECE.BLACK : PIECE.WHITE;
-  if (flag != MoveFlag.DOUBLE_PAWN_PUSH && state.enPassantTargetSquare != -1) {
+  state.colorToGo = state.colorToGo.oppositeColor;
+  if (flag != MoveFlag.doublePawnPush && state.enPassantTargetSquare != -1) {
     state.enPassantTargetSquare = -1;
   }
   state.turnsForFiftyRule++; // Augmenting every half-move
-  if (state.colorToGo == PIECE.WHITE) {
+  if (state.colorToGo == PieceColor.white) {
     state.nbMoves++; // Only recording full moves
   }
 }

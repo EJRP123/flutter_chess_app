@@ -16,10 +16,10 @@ class PromotionDialog extends StatelessWidget {
     return AlertDialog(
       actionsAlignment: MainAxisAlignment.center,
       actions: [
-        getPieceChoice(Piece.fromEnum(color, PieceType.queen), MoveFlag.PROMOTE_TO_QUEEN),
-        getPieceChoice(Piece.fromEnum(color, PieceType.knight), MoveFlag.PROMOTE_TO_KNIGHT),
-        getPieceChoice(Piece.fromEnum(color, PieceType.rook), MoveFlag.PROMOTE_TO_ROOK),
-        getPieceChoice(Piece.fromEnum(color, PieceType.bishop), MoveFlag.PROMOTE_TO_BISHOP),
+        getPieceChoice(Piece(color, PieceType.queen), MoveFlag.promoteToQueen),
+        getPieceChoice(Piece(color, PieceType.knight), MoveFlag.promoteToKnight),
+        getPieceChoice(Piece(color, PieceType.rook), MoveFlag.promoteToRook),
+        getPieceChoice(Piece(color, PieceType.bishop), MoveFlag.promoteToBishop),
       ],
     );
   }

@@ -147,7 +147,7 @@ abstract class _Flag {
   static const int DRAW = 11;
 }
 
-abstract class PIECE {
+abstract class _PIECE {
   static const int NONE = 0;
   static const int KING = 1;
   static const int QUEEN = 2;

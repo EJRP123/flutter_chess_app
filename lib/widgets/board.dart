@@ -53,9 +53,7 @@ class _BoardState extends State<Board> {
   @override
   void initState() {
     super.initState();
-
-    _gameState = ChessGameState.fromFenString(
-        "rnbqkbnr/pppppp1p/8/6p1/5P2/8/PPPPP1PP/RNBQKBNR w KQkq g6 0 2");
+    _gameState = ChessGameState.startingGameState();
     _engine = ChessEngine();
     _movesMade = LinkedHashMap<ChessMove, ChessGameState>();
     _highlightedSquares = List.filled(81, false);
@@ -87,7 +85,7 @@ class _BoardState extends State<Board> {
           // Since Chess.com has the same behaviour in their app,
           // (you cannot take back a move while a bot is "thinking")
           // this is not a bug, but a feature
-          if (_gameState.colorToGo == _aiPieceColor.value) return;
+          if (_gameState.colorToGo == _aiPieceColor) return;
           undoMove();
           return null;
         })
@@ -115,8 +113,8 @@ class _BoardState extends State<Board> {
                         Colors.yellowAccent.withOpacity(0.5), color);
                   }
                 }
-                final int piece = _gameState.boardArray[index];
-                final isDraggable = Piece(piece).color != _aiPieceColor;
+                final Piece piece = _gameState.boardArray[index];
+                final isDraggable = piece.color != _aiPieceColor;
                 final isHighlighted = _highlightedSquares[index];
                 return GestureDetector(
                     onTap: () {
@@ -127,7 +125,7 @@ class _BoardState extends State<Board> {
                         return; // To get no await bugs
                       }
 
-                      if (piece != PieceType.none.value && isDraggable) {
+                      if (piece.type != PieceType.none && isDraggable) {
                         // We clicked our own piece
                         clickedAPiece(index);
                       } else {
@@ -174,7 +172,7 @@ class _BoardState extends State<Board> {
         element.endSquare == index);
 
     final move = await getMoveToMake(
-        moves, moves.any((e) => e.flag == MoveFlag.PROMOTE_TO_QUEEN));
+        moves, moves.any((e) => e.flag == MoveFlag.promoteToQueen));
     await makeHumanMoveThenAiMove(move);
   }
 
@@ -184,8 +182,7 @@ class _BoardState extends State<Board> {
       final moveFlag = await showDialog(
           context: context,
           builder: (context) => PromotionDialog(
-              color: PieceColor.values[
-                  (_gameState.colorToGo & Piece.pieceColorBitMask) ~/ 8 - 1],
+              color: _gameState.colorToGo,
               contextOfPopup: context));
       return moves.where((e) => e.flag == moveFlag).first;
     } else {
@@ -200,17 +197,17 @@ class _BoardState extends State<Board> {
   bool computeGameEnd() {
     final move0 = _currentLegalMoves[0];
 
-    if (move0.flag == MoveFlag.DRAW) {
+    if (move0.flag == MoveFlag.draw) {
       draw();
       return true;
     }
 
-    if (move0.flag == MoveFlag.STALEMATE) {
+    if (move0.flag == MoveFlag.stalemate) {
       stalemate();
       return true;
     }
-    if (move0.flag == MoveFlag.CHECMATE) {
-      checkmate(_gameState.colorToGo == PieceColor.white.value
+    if (move0.flag == MoveFlag.checkmate) {
+      checkmate(_gameState.colorToGo == PieceColor.white
           ? PieceColor.black
           : PieceColor.white);
       return true;
@@ -260,6 +257,7 @@ class _BoardState extends State<Board> {
 
   void resetBoard() {
     setState(() {
+      // _gameState.copyFrom(ChessGameState.startingGameState());
       _gameState.copyFrom(ChessGameState.startingGameState());
       _movesMade.clear();
       _currentLegalMoves =
@@ -267,14 +265,14 @@ class _BoardState extends State<Board> {
       _clickedPieceIndex = -1;
       removeAllHighlightedSquares();
     });
-    if (_gameState.colorToGo == _aiPieceColor.value) {
+    if (_gameState.colorToGo == _aiPieceColor) {
       makeAiResponseMove(); // No need to compute game end cause impossible
     }
   }
 
   void undoMove() {
     if (_movesMade.length <= 1) return;
-    if (_gameState.colorToGo == _aiPieceColor.value) {
+    if (_gameState.colorToGo == _aiPieceColor) {
       _gameState.copyFrom(_movesMade.values.last);
       _movesMade.remove(_movesMade.keys.last); // Undoing the player move
     } else {
@@ -296,12 +294,12 @@ class _BoardState extends State<Board> {
   }
 
   void droppedPiece(int from, int to) {
-    if (_gameState.colorToGo == _aiPieceColor.value) {
+    if (_gameState.colorToGo == _aiPieceColor) {
       return;
     }
     final potentialMove = _currentLegalMoves.firstWhere(
         (move) => move.startSquare == from && move.endSquare == to,
-        orElse: () => const ChessMove(-1, -1, MoveFlag.NOFlAG));
+        orElse: () => const ChessMove(-1, -1, MoveFlag.noFlag));
     if (potentialMove.startSquare == -1) {
       return;
     }
@@ -339,8 +337,7 @@ typedef DroppedPiece = void Function(int from, int to);
 
 class Square extends StatelessWidget {
   final int index;
-  // TODO: Replace this field with Piece class
-  final int piece;
+  final Piece piece;
   final Color color;
   final bool isHighlighted;
   final bool isDraggable;
@@ -368,7 +365,7 @@ class Square extends StatelessWidget {
                       alignment: Alignment.center,
                       fit: StackFit.expand,
                       children: [
-                        if (piece != PieceType.none.value)
+                        if (piece.type != PieceType.none)
                           if (isDraggable)
                             getDraggablePicture()
                           else
@@ -404,11 +401,11 @@ class Square extends StatelessWidget {
 
   Widget getPieceSVG(bool keepRotation) {
     String assetName =
-        "assets/images/${Piece(piece).toString().toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/${piece.toString().toLowerCase().replaceAll(" ", "_")}.svg";
     return Transform.rotate(
       angle: keepRotation && rotate ? pi : 0,
       child:
-          SvgPicture.asset(assetName, semanticsLabel: Piece(piece).toString()),
+          SvgPicture.asset(assetName, semanticsLabel: piece.toString()),
     );
   }
 }

@@ -35,7 +35,7 @@ class ChessAi {
 
   ChessMove getMoveToPlay(
       ChessGameState state, List<ChessGameState> previousStates) {
-    const maxDepth = 2;
+    const maxDepth = 3;
     final List<ChessMove> legalMoves =
         _engine.getMovesFromState(state, previousStates);
     var bestEval = _negativeInfinity;
@@ -46,7 +46,8 @@ class ChessAi {
       final newState = state.copy();
       newState.makeMove(move);
       previousStates.add(state); // Because this is now a previous move
-      int eval = _search(maxDepth, maxDepth, newState, previousStates) * -1;
+      int eval = _search(maxDepth, _negativeInfinity, _positiveInfinity,
+          newState, previousStates) * -1;
       if (eval > bestEval) {
         bestEval = eval;
         bestMoves.clear();
@@ -79,26 +80,23 @@ class ChessAi {
   /// Only checks at material and mobility
   /// Does not look into king safety, center control, ect...
   /// Returns a positive value if white is better else it is a negative value
-  int evaluatePosition(
-      ChessGameState state) {
+  int evaluatePosition(ChessGameState state) {
     // material
     final whiteMaterial = state.boardArray
-        .where((element) =>
-            (element & Piece.pieceColorBitMask) == PieceColor.white.value)
-        .map((e) => _pieceToValue(Piece(e)))
+        .where((element) => element.color == PieceColor.white)
+        .map((e) => _pieceToValue(e))
         .reduce((value, element) => value + element);
     final blackMaterial = state.boardArray
-        .where((element) =>
-            (element & Piece.pieceColorBitMask) == PieceColor.black.value)
-        .map((e) => _pieceToValue(Piece(e)))
+        .where((element) => element.color == PieceColor.black)
+        .map((e) => _pieceToValue(e))
         .reduce((value, element) => value + element);
     final materialScore = whiteMaterial - blackMaterial;
     // mobility
-    state.colorToGo = PieceColor.black.value;
+    state.colorToGo = PieceColor.black;
     // Note: Previous states not taken into account to speed up the app
     final blackLegalMoves =
         _engine.getMovesFromState(state, List.empty(growable: true)).length;
-    state.colorToGo = PieceColor.white.value;
+    state.colorToGo = PieceColor.white;
     final whiteLegalMoves =
         _engine.getMovesFromState(state, List.empty(growable: true)).length;
     final mobilityScore = (whiteLegalMoves - blackLegalMoves) * _mobilityWeight;
@@ -106,11 +104,10 @@ class ChessAi {
     return materialScore + mobilityScore;
   }
 
-  int _search(int depth, int maxDepth, ChessGameState currentState,
+  int _search(int depth, int alpha, int beta, ChessGameState currentState,
       List<ChessGameState> previousStates) {
     if (depth == 0) {
-      final perspective =
-          currentState.colorToGo == PieceColor.white.value ? 1 : -1;
+      final perspective = currentState.colorToGo == PieceColor.white ? 1 : -1;
       return evaluatePosition(currentState.copy()) * perspective;
     }
 
@@ -118,29 +115,35 @@ class ChessAi {
     orderMoves(moves, currentState);
 
     if (moves.length == 1) {
-      if (moves[0].flag == MoveFlag.CHECMATE) {
+      if (moves[0].flag == MoveFlag.checkmate) {
         return _negativeInfinity;
-      } else if (moves[0].flag == MoveFlag.STALEMATE ||
-          moves[0].flag == MoveFlag.DRAW) {
+      } else if (moves[0].flag == MoveFlag.stalemate ||
+          moves[0].flag == MoveFlag.draw) {
         return 0;
       }
     }
 
-    var bestEvaluation = _negativeInfinity;
-
     for (int i = 0; i < moves.length; i++) {
       final move = moves[i];
       final newState = currentState.copy();
-      previousStates.add(currentState.copy());
+      previousStates.add(currentState);
       newState.makeMove(move);
+      // Eval is the worse case scenario of this move
+      // It is the best response that the opponent can make
       final evaluation =
-          _search(depth - 1, maxDepth, newState, previousStates) * -1;
+          _search(depth - 1, -beta, -alpha, newState, previousStates) * -1;
       // Removing moves done in this depth
       previousStates.removeLast();
-      bestEvaluation = max(bestEvaluation, evaluation);
+      if (evaluation >= beta) {
+        // The previous evaluation (beta) was worse than the current evaluation
+        // Since we assume that the opponent will always make the best move,
+        // then we cannot make this move as this would lead to an even better
+        // position for the opponent. We can therefore prune this branch
+        return beta;
+      }
+      alpha = max(alpha, evaluation);
     }
-
-    return bestEvaluation;
+    return alpha;
   }
 
   final _capturedPieceValueMultiplier = 10;
@@ -150,8 +153,8 @@ class ChessAi {
     for (int i = 0; i < moves.length; i++) {
       final move = moves[i];
       int score = 0;
-      final pieceThatMoves = Piece(state.boardArray[move.startSquare]);
-      final pieceToCapture = Piece(state.boardArray[move.endSquare]);
+      final pieceThatMoves = state.boardArray[move.startSquare];
+      final pieceToCapture = state.boardArray[move.endSquare];
 
       // Captures a piece with a smaller piece
       if (pieceToCapture.type != PieceType.none) {
@@ -162,13 +165,13 @@ class ChessAi {
       // Promote a piece
       if ((pieceThatMoves.type) == PieceType.pawn) {
         final flag = move.flag;
-        if (flag == MoveFlag.PROMOTE_TO_QUEEN) {
+        if (flag == MoveFlag.promoteToQueen) {
           score += _queenValue;
-        } else if (flag == MoveFlag.PROMOTE_TO_KNIGHT) {
+        } else if (flag == MoveFlag.promoteToKnight) {
           score += _knightValue;
-        } else if (flag == MoveFlag.PROMOTE_TO_ROOK) {
+        } else if (flag == MoveFlag.promoteToRook) {
           score += _rookValue;
-        } else if (flag == MoveFlag.PROMOTE_TO_BISHOP) {
+        } else if (flag == MoveFlag.promoteToBishop) {
           score += _bishopValue;
         }
       }

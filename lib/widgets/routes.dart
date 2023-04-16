@@ -16,9 +16,9 @@ class MainMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String whiteAsset =
-        "assets/images/${Piece.fromEnum(PieceColor.white, PieceType.king).toString().toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/${Piece(PieceColor.white, PieceType.king).toString().toLowerCase().replaceAll(" ", "_")}.svg";
     String blackAsset =
-        "assets/images/${Piece.fromEnum(PieceColor.black, PieceType.king).toString().toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/${Piece(PieceColor.black, PieceType.king).toString().toLowerCase().replaceAll(" ", "_")}.svg";
     return Material(
       color: Colors.grey,
       child: Row(
@@ -32,7 +32,7 @@ class MainMenu extends StatelessWidget {
                 },
                 child: SvgPicture.asset(whiteAsset,
                     semanticsLabel:
-                        Piece.fromEnum(PieceColor.white, PieceType.king)
+                        Piece(PieceColor.white, PieceType.king)
                             .toString())),
           ),
           Expanded(
@@ -41,7 +41,7 @@ class MainMenu extends StatelessWidget {
               Navigator.push(context, getRouteBuilder(PieceColor.black));
             },
             child: SvgPicture.asset(blackAsset,
-                semanticsLabel: Piece.fromEnum(PieceColor.black, PieceType.king)
+                semanticsLabel: Piece(PieceColor.black, PieceType.king)
                     .toString()),
           ))
         ],
