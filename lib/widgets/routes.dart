@@ -88,18 +88,19 @@ class GamePage extends StatelessWidget {
 }
 
 // I need to do this to use the Flutter compute function
-ChessMove getMoveFromAiIsolate(AiMoveParam param) {
+List<ChessMove> getMoveFromAiIsolate(AiMoveParam param) {
   ChessEngine.init(
       dynamicLibProvider()); // Since this will be called in another isolate
-  return ChessAi().getMoveToPlay(param.state, List.from(param.previousStates));
+  return ChessEngine().getBestMovesAccordingToComputer(param.depth, param.state, param.previousStates);
 }
 
 // I need to do this to use the Flutter compute function with multiple param
 class AiMoveParam {
   final ChessGameState state;
   final List<ChessGameState> previousStates;
+  final int depth;
 
-  AiMoveParam(this.state, this.previousStates);
+  AiMoveParam(this.state, this.previousStates, this.depth);
 }
 
 DynamicLibrary dynamicLibProvider() {

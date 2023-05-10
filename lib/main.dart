@@ -1,4 +1,4 @@
-import 'package:chess_app/widgets/routes.dart';
+import 'widgets/routes.dart';
 import 'package:flutter/material.dart';
 
 void main() {

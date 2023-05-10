@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_layout_grid/flutter_layout_grid.dart';
 import 'package:flutter_svg/svg.dart';
 
-import '../engine/c_engine_api.dart';
+import '../engine/chess_engine.dart';
 import 'dialogs.dart';
 import 'draggable_widget.dart';
 import 'routes.dart';
@@ -182,8 +182,7 @@ class _BoardState extends State<Board> {
       final moveFlag = await showDialog(
           context: context,
           builder: (context) => PromotionDialog(
-              color: _gameState.colorToGo,
-              contextOfPopup: context));
+              color: _gameState.colorToGo, contextOfPopup: context));
       return moves.where((e) => e.flag == moveFlag).first;
     } else {
       return moves.first;
@@ -308,7 +307,7 @@ class _BoardState extends State<Board> {
   }
 
   Future<void> makeHumanMoveThenAiMove(ChessMove move) async {
-    makeMove(move, false);
+    makeMove(move);
     if (computeGameEnd()) {
       return;
     }
@@ -316,7 +315,7 @@ class _BoardState extends State<Board> {
     computeGameEnd();
   }
 
-  void makeMove(ChessMove move, bool aiMove) {
+  void makeMove(ChessMove move) {
     setState(() {
       _movesMade[move] = _gameState.copy();
       _gameState.makeMove(move);
@@ -326,10 +325,11 @@ class _BoardState extends State<Board> {
     });
   }
 
+  // TODO: The ai response move always crashes. This is probably just a memory leak somewhere ngl
   Future<void> makeAiResponseMove() async {
-    final responseMove = await compute<AiMoveParam, ChessMove>(
-        getMoveFromAiIsolate, AiMoveParam(_gameState, _previousStates));
-    makeMove(responseMove, true);
+    final responseMoves = await compute<AiMoveParam, List<ChessMove>>(
+        getMoveFromAiIsolate, AiMoveParam(_gameState, _previousStates, 1));
+    makeMove(responseMoves[Random().nextInt(responseMoves.length)]);
   }
 }
 
@@ -404,8 +404,7 @@ class Square extends StatelessWidget {
         "assets/images/${piece.toString().toLowerCase().replaceAll(" ", "_")}.svg";
     return Transform.rotate(
       angle: keepRotation && rotate ? pi : 0,
-      child:
-          SvgPicture.asset(assetName, semanticsLabel: piece.toString()),
+      child: SvgPicture.asset(assetName, semanticsLabel: piece.toString()),
     );
   }
 }

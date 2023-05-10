@@ -1,6 +1,10 @@
 library chess_engine;
 
-export 'c_engine_api.dart'
+import 'dart:ffi' as ffi;
+import 'package:ffi/ffi.dart';
+
+
+export 'chess_engine.dart'
     show
         ChessEngine,
         ChessGameState,
@@ -9,4 +13,8 @@ export 'c_engine_api.dart'
         MoveFlag,
         PieceColor,
         PieceType;
-export 'chess_ai.dart' show ChessAi;
+
+part 'c_engine_api.dart';
+part 'c_engine_ffi.dart';
+// part of 'chess_engine.dart'; // Line added by EJRP
+

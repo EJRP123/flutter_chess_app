@@ -1,22 +1,4 @@
-library c_engine_api;
-
-import 'dart:ffi' as ffi;
-
-import 'package:ffi/ffi.dart';
-
-export 'c_engine_api.dart'
-    show
-        ChessEngine,
-        ChessGameState,
-        Piece,
-        ChessMove,
-        MoveFlag,
-        PieceColor,
-        PieceType;
-
-part 'c_engine_ffi.dart';
-// part of 'package:chess_app/engine/c_engine_api.dart'; // Line added by EJRP
-part 'game_emulator.dart';
+part of 'chess_engine.dart';
 
 enum MoveFlag {
   noFlag,
@@ -36,6 +18,8 @@ enum MoveFlag {
     if (flag > MoveFlag.values.length || flag < 0) return MoveFlag.noFlag;
     return MoveFlag.values[flag];
   }
+
+  int get value => index;
 
   @override
   String toString() {
@@ -78,6 +62,7 @@ enum PieceColor {
       return PieceColor.none;
     }
   }
+
   static PieceColor fromInt(int value) =>
       PieceColor.values[(value & Piece.pieceColorBitMask) ~/ 8];
 }
@@ -85,18 +70,18 @@ enum PieceColor {
 class Piece {
   static const int pieceColorBitMask = _pieceColorBitMask;
   static const int pieceTypeBitMask = _pieceTypeBitMask;
-  static final Piece none = Piece.fromInt(0);
+  static final Piece none = Piece.fromInt(PieceType.none.value);
 
   late final int value;
   Piece(PieceColor color, PieceType type) {
     value = color.value | type.value;
   }
-  
+
   Piece.fromInt(this.value);
-  
+
   PieceColor get color => PieceColor.values[(value & pieceColorBitMask) ~/ 8];
   PieceType get type => PieceType.values[value & pieceTypeBitMask];
-  
+
   String fenChar() {
     String caseLambda(String fenChar) {
       return color == PieceColor.white ? fenChar.toUpperCase() : fenChar;
@@ -119,7 +104,7 @@ class Piece {
         return "";
     }
   }
-  
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -146,6 +131,13 @@ class ChessMove {
 
   const ChessMove(this.startSquare, this.endSquare, this.flag);
 
+  static ChessMove fromInt(int move) {
+    int startSquare = move & 63;
+    int endSquare = (move >> 6) & 63;
+    int flag = move >> 12;
+    return ChessMove(startSquare, endSquare, MoveFlag.fromInt(flag));
+  }
+
   String toStringWithBoard(ChessGameState state) {
     return '${Piece.fromInt(state.boardArray[startSquare].value)} ($startSquare) '
         'to ${Piece.fromInt(state.boardArray[endSquare].value)} ($endSquare)';
@@ -168,15 +160,15 @@ class ChessGameState {
   int nbMoves;
 
   ChessGameState(this.boardArray, this.colorToGo, this.castlingPerm,
-      this.enPassantTargetSquare, this.nbMoves, this.turnsForFiftyRule);
+      this.enPassantTargetSquare, this.turnsForFiftyRule, this.nbMoves);
 
   ChessGameState copy() {
     return ChessGameState(_copyList(boardArray), colorToGo, castlingPerm,
-        enPassantTargetSquare, nbMoves, turnsForFiftyRule);
+        enPassantTargetSquare, turnsForFiftyRule, nbMoves);
   }
 
   void copyFrom(ChessGameState src) {
-    for (int i = 0; i < _BOARD_SIZE; i++) {
+    for (int i = 0; i < BOARD_SIZE; i++) {
       boardArray[i] = src.boardArray[i];
     }
     colorToGo = src.colorToGo;
@@ -187,17 +179,33 @@ class ChessGameState {
   }
 
   void makeMove(ChessMove move) {
-    _makeMove(move, this);
+    int from = move.startSquare;
+    int to = move.endSquare << 6;
+    int flag = move.flag.value << 12;
+    int cMove = from + to + flag;
+    final cState = ChessEngine()._dartStateToCState(this);
+    ChessEngine()._library.makeMove(cMove, cState);
+    // Update the dart state
+    for (int i = 0; i < BOARD_SIZE; i++) {
+      boardArray[i] = Piece.fromInt(cState.ref.boardArray.elementAt(i).value);
+    }
+    colorToGo = PieceColor.fromInt(cState.ref.colorToGo);
+    castlingPerm = cState.ref.castlingPerm;
+    enPassantTargetSquare = cState.ref.enPassantTargetSquare;
+    turnsForFiftyRule = cState.ref.turnsForFiftyRule;
+    nbMoves = cState.ref.nbMoves;
+
+    malloc.free(cState.ref.boardArray);
+    malloc.free(cState);
   }
 
   String boardAsString() {
     String result = "";
     for (int i = 0; i < 64; i++) {
-      final fenChar = Piece.fromInt(boardArray[i].value).fenChar();
-      result += "|";
-      result += (fenChar.isNotEmpty) ? " $fenChar " : "   ";
+      final fenChar = boardArray[i].fenChar();
+      result += (fenChar.isNotEmpty) ? "[ $fenChar ]" : "[   ]";
       if ((i + 1) % 8 == 0) {
-        result += "|\n";
+        result += "\n";
       }
     }
     return result.substring(0, result.length - 1); // Remove last new line
@@ -242,16 +250,16 @@ class ChessGameState {
         ._library
         .setGameStateFromFenString(cFenString, ffi.nullptr);
     malloc.free(cFenString);
-    final boardArray = List.filled(_BOARD_SIZE, Piece.fromInt(0));
+    final boardArray = List.filled(BOARD_SIZE, Piece.fromInt(0));
 
-    for (int i = 0; i < _BOARD_SIZE; i++) {
+    for (int i = 0; i < BOARD_SIZE; i++) {
       boardArray[i] = Piece.fromInt(cState.ref.boardArray.elementAt(i).value);
     }
 
     final result = ChessGameState(
         boardArray,
         PieceColor.fromInt(cState.ref.colorToGo),
-        cState.ref.castlinPerm,
+        cState.ref.castlingPerm,
         cState.ref.enPassantTargetSquare,
         cState.ref.turnsForFiftyRule,
         cState.ref.nbMoves);
@@ -292,63 +300,43 @@ class ChessEngine {
     return _onlyInstance!;
   }
 
-  List<ChessMove> getMovesFromFenString(String fenString) {
-    final fenStringUTF8 = fenString.toNativeUtf8().cast<ffi.Char>();
-    final state =
-        _library.setGameStateFromFenString(fenStringUTF8, ffi.nullptr);
-    malloc.free(fenStringUTF8);
-    return _getMovesFromPointerState(state, ffi.nullptr, 0);
-  }
-
   List<ChessMove> getMovesFromState(
       ChessGameState gameState, List<ChessGameState> previousStates) {
     final state = _dartStateToCState(gameState);
-    if (previousStates.isEmpty) {
-      return _getMovesFromPointerState(state, ffi.nullptr, 0);
-    }
-    final pointerPreviousStates = malloc
-        .allocate<_GameState>(ffi.sizeOf<_GameState>() * previousStates.length);
 
+    final gameStatesPtr = malloc<GameStates>();
+    gameStatesPtr.ref.items = previousStates.isNotEmpty
+        ? malloc<GameState>(ffi.sizeOf<GameState>() * previousStates.length)
+        : ffi.nullptr;
+    gameStatesPtr.ref.capacity = previousStates.length;
+    gameStatesPtr.ref.count = previousStates.length;
     for (int i = 0; i < previousStates.length; i++) {
       final pointerToState = _dartStateToCState(previousStates[i]);
-      pointerPreviousStates.elementAt(i).ref = pointerToState.ref;
+      gameStatesPtr.ref.items.elementAt(i).ref = pointerToState.ref;
     }
-
-    return _getMovesFromPointerState(
-        state, pointerPreviousStates, previousStates.length);
+    return _getMovesFromPointerState(state, gameStatesPtr);
   }
 
-  List<ChessMove> _getMovesFromPointerState(ffi.Pointer<_GameState> state,
-      ffi.Pointer<_GameState> previousStates, int numberOfPreviousStates) {
-    final moves =
-        _library.getValidMoves(state, previousStates, numberOfPreviousStates);
-
+  List<ChessMove> _getMovesFromPointerState(
+      ffi.Pointer<GameState> state, ffi.Pointer<GameStates> previousStates) {
+    final moves = _library.getValidMoves(state, previousStates);
     // No memory leaks Please <(^uwu^)>
     malloc.free(state.ref.boardArray);
     malloc.free(state);
-    for (int i = 0; i < numberOfPreviousStates; i++) {
-      malloc.free(previousStates[i].boardArray);
+    for (int i = 0; i < previousStates.ref.count; i++) {
+      malloc.free(previousStates.ref.items[i].boardArray);
+    }
+    if (previousStates.ref.capacity != 0) {
+      malloc.free(previousStates.ref.items);
     }
     malloc.free(previousStates);
-    final result = <ChessMove>[];
-    _Moves totalMoves = moves.ref;
-    for (int i = 0; i < totalMoves.count; i++) {
-      int move = totalMoves.items.elementAt(i).value;
-
-      int startSquare = move & 63;
-      int endSquare = (move >> 6) & 63;
-      int flag = move >> 12;
-
-      final moveObj = ChessMove(startSquare, endSquare, MoveFlag.fromInt(flag));
-
-      result.add(moveObj);
-    }
+    final result = movesDAToDartList(moves);
     malloc.free(moves.ref.items);
     malloc.free(moves);
     return result;
   }
 
-  ffi.Pointer<_GameState> _dartStateToCState(ChessGameState state) {
+  ffi.Pointer<GameState> _dartStateToCState(ChessGameState state) {
     final boardPointer = malloc.allocate<ffi.Int>(ffi.sizeOf<ffi.Int>() * 64);
     for (int i = 0; i < 64; i++) {
       boardPointer.elementAt(i).value = state.boardArray[i].value;
@@ -361,6 +349,46 @@ class ChessEngine {
         state.enPassantTargetSquare,
         state.turnsForFiftyRule,
         state.nbMoves);
+  }
+
+  List<ChessMove> getBestMovesAccordingToComputer(int depth,
+      ChessGameState currentState, List<ChessGameState> previousStates) {
+    final currentStateC = _dartStateToCState(currentState);
+    final gameStatesPtr = malloc<GameStates>();
+    gameStatesPtr.ref.capacity = previousStates.length;
+    gameStatesPtr.ref.count = previousStates.length;
+    gameStatesPtr.ref.items = previousStates.isNotEmpty
+        ? malloc.allocate(ffi.sizeOf<GameState>() * gameStatesPtr.ref.capacity)
+        : ffi.nullptr;
+    for (int i = 0; i < previousStates.length; i++) {
+      final c_state = _dartStateToCState(previousStates[i]);
+      gameStatesPtr.ref.items[i] = c_state.ref;
+      malloc.free(c_state);
+    }
+
+    final cMoves = _library.bestMovesAccordingToComputer(
+        depth, currentStateC, gameStatesPtr);
+    final moves = movesDAToDartList(cMoves);
+    malloc.free(cMoves.ref.items);
+    malloc.free(cMoves);
+    if (previousStates.isNotEmpty) {
+      for (int i = 0; i < gameStatesPtr.ref.count; i++) {
+        malloc.free(gameStatesPtr.ref.items.elementAt(i).ref.boardArray);
+      }
+      malloc.free(gameStatesPtr.ref.items);
+    }
+    malloc.free(gameStatesPtr);
+    malloc.free(currentStateC.ref.boardArray);
+    malloc.free(currentStateC);
+    return moves;
+  }
+
+  List<ChessMove> movesDAToDartList(ffi.Pointer<Moves> moves) {
+    final result = <ChessMove>[];
+    for (int i = 0; i < moves.ref.count; i++) {
+      result.add(ChessMove.fromInt(moves.ref.items[i]));
+    }
+    return result;
   }
 
   @override
