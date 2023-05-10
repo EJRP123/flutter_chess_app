@@ -325,7 +325,6 @@ class _BoardState extends State<Board> {
     });
   }
 
-  // TODO: The ai response move always crashes. This is probably just a memory leak somewhere ngl
   Future<void> makeAiResponseMove() async {
     final responseMoves = await compute<AiMoveParam, List<ChessMove>>(
         getMoveFromAiIsolate, AiMoveParam(_gameState, _previousStates, 1));
