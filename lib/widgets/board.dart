@@ -325,9 +325,10 @@ class _BoardState extends State<Board> {
     });
   }
 
+  // TODO AI is very slow, like slower without move ordering
   Future<void> makeAiResponseMove() async {
     final responseMoves = await compute<AiMoveParam, List<ChessMove>>(
-        getMoveFromAiIsolate, AiMoveParam(_gameState, _previousStates, 1));
+        getMoveFromAiIsolate, AiMoveParam(_gameState, _previousStates, 3));
     makeMove(responseMoves[Random().nextInt(responseMoves.length)]);
   }
 }

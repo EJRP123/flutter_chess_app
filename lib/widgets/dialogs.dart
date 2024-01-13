@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 
-import '../engine/c_engine_api.dart';
+import '../engine/chess_engine.dart';
 
 class PromotionDialog extends StatelessWidget {
   final PieceColor color;

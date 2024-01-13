@@ -199,6 +199,45 @@ class ChessGameState {
     malloc.free(cState);
   }
 
+  String toFenString() {
+    var fenString = "";
+    // Add board
+    var emptySpots = 0;
+    for (int i = 0; i < 64; i++) {
+      if (i % 8 == 0 && i > 0) {
+        if (emptySpots != 0) {
+          fenString += emptySpots.toString();
+        }
+        fenString += "/";
+        emptySpots = 0;
+      }
+      final piece = boardArray[i];
+      if (piece == Piece.none) {
+        emptySpots++;
+      } else {
+        fenString += (emptySpots != 0) ? "$emptySpots${piece.fenChar()}" : piece.fenChar();
+        emptySpots = 0;
+      }
+    }
+
+    // Add turn
+    fenString += (colorToGo == PieceColor.black) ? " b " : " w ";
+    // Add castling
+    fenString += ((castlingPerm >> 3) & 1 == 1) ? "K" : "";
+    fenString += ((castlingPerm >> 2) & 1 == 1) ? "Q" : "";
+    fenString += ((castlingPerm >> 1) & 1 == 1) ? "k" : "";
+    fenString += ((castlingPerm >> 0) & 1 == 1) ? "q" : "";
+    fenString += (castlingPerm == 0) ? "-" : "";
+    // Add en-passant
+    fenString += " ${positionToAlgebraic(enPassantTargetSquare)}";
+    // Add fifty-fifty rule
+    fenString += " $turnsForFiftyRule ";
+    // Add total number of moves
+    fenString += nbMoves.toString();
+
+    return fenString;
+  }
+
   String boardAsString() {
     String result = "";
     for (int i = 0; i < 64; i++) {
@@ -361,9 +400,9 @@ class ChessEngine {
         ? malloc.allocate(ffi.sizeOf<GameState>() * gameStatesPtr.ref.capacity)
         : ffi.nullptr;
     for (int i = 0; i < previousStates.length; i++) {
-      final c_state = _dartStateToCState(previousStates[i]);
-      gameStatesPtr.ref.items[i] = c_state.ref;
-      malloc.free(c_state);
+      final cState = _dartStateToCState(previousStates[i]);
+      gameStatesPtr.ref.items[i] = cState.ref;
+      malloc.free(cState);
     }
 
     final cMoves = _library.bestMovesAccordingToComputer(
@@ -395,4 +434,23 @@ class ChessEngine {
   String toString() {
     return "ChessEngine()";
   }
+}
+
+String positionToAlgebraic(int position) {
+  String result;
+  if (position < 0 || position > 63) {
+    return "-";
+  }
+  switch (position % 8) {
+    case 0: result = "a${8 - position ~/ 8}"; break;
+    case 1: result = "b${8 - position ~/ 8}"; break;
+    case 2: result = "c${8 - position ~/ 8}"; break;
+    case 3: result = "d${8 - position ~/ 8}"; break;
+    case 4: result = "e${8 - position ~/ 8}"; break;
+    case 5: result = "f${8 - position ~/ 8}"; break;
+    case 6: result = "g${8 - position ~/ 8}"; break;
+    case 7: result = "h${8 - position ~/ 8}"; break;
+    default: result =  "-";
+  }
+  return result;
 }

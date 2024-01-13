@@ -7,6 +7,7 @@ import 'package:flutter_svg/svg.dart';
 
 import '../engine/chess_engine.dart';
 import 'board.dart';
+import 'debug_board.dart';
 
 class MainMenu extends StatelessWidget {
   const MainMenu({Key? key}) : super(key: key);
@@ -43,7 +44,20 @@ class MainMenu extends StatelessWidget {
             child: SvgPicture.asset(blackAsset,
                 semanticsLabel: Piece(PieceColor.black, PieceType.king)
                     .toString()),
-          ))
+          )),
+          Expanded(
+              child: InkWell(
+                onTap: () {
+                  Navigator.push(context, PageRouteBuilder(pageBuilder: (c,a, s) => const DebugPage()));
+                },
+                child: const Center(
+                  child: Text("Debug Mode",
+                    style: TextStyle(
+                      fontSize: 64.0,
+                      fontWeight: FontWeight.bold
+                  ),),
+                ),
+              ))
         ],
       ),
     );
@@ -85,6 +99,24 @@ class GamePage extends StatelessWidget {
       backgroundColor: Colors.blueGrey,
     );
   }
+}
+
+class DebugPage extends StatelessWidget {
+
+  const DebugPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.blueGrey,
+        title: const Text("Debugging chess positions"),
+      ),
+      body: DebugBoard(),
+      backgroundColor: Colors.blueGrey,
+    );
+  }
+
 }
 
 // I need to do this to use the Flutter compute function

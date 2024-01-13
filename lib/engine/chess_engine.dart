@@ -3,7 +3,6 @@ library chess_engine;
 import 'dart:ffi' as ffi;
 import 'package:ffi/ffi.dart';
 
-
 export 'chess_engine.dart'
     show
         ChessEngine,
