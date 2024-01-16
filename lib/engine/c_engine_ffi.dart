@@ -479,7 +479,6 @@ class _NativeLibrary {
       _makeMovePtr.asFunction<void Function(int, ffi.Pointer<GameState>)>();
 
   /// Returns the best move in a position (according to the computer)
-  /// TODO: Implement time control later
   int think(
     GameState state,
     ffi.Pointer<GameState> previousStates,
