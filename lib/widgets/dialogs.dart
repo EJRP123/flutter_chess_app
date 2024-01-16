@@ -16,15 +16,15 @@ class PromotionDialog extends StatelessWidget {
     return AlertDialog(
       actionsAlignment: MainAxisAlignment.center,
       actions: [
-        getPieceChoice(Piece(color, PieceType.queen), MoveFlag.promoteToQueen),
-        getPieceChoice(Piece(color, PieceType.knight), MoveFlag.promoteToKnight),
-        getPieceChoice(Piece(color, PieceType.rook), MoveFlag.promoteToRook),
-        getPieceChoice(Piece(color, PieceType.bishop), MoveFlag.promoteToBishop),
+        getPieceChoice(ChessPiece(color, PieceType.queen), MoveFlag.promoteToQueen),
+        getPieceChoice(ChessPiece(color, PieceType.knight), MoveFlag.promoteToKnight),
+        getPieceChoice(ChessPiece(color, PieceType.rook), MoveFlag.promoteToRook),
+        getPieceChoice(ChessPiece(color, PieceType.bishop), MoveFlag.promoteToBishop),
       ],
     );
   }
 
-  Widget getPieceChoice(Piece piece, MoveFlag flag) {
+  Widget getPieceChoice(ChessPiece piece, MoveFlag flag) {
     String assetName =
         "assets/images/${piece.toString().toLowerCase().replaceAll(" ", "_")}.svg";
     return GestureDetector(

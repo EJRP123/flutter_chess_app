@@ -19,26 +19,387 @@ class _NativeLibrary {
           lookup)
       : _lookup = lookup;
 
-  ffi.Pointer<Moves> getValidMoves(
-    ffi.Pointer<GameState> gameState,
-    ffi.Pointer<GameStates> previousStates,
+  int trailingZeros_64(
+    int x,
   ) {
-    return _getValidMoves(
-      gameState,
-      previousStates,
+    return _trailingZeros_64(
+      x,
     );
   }
 
-  late final _getValidMovesPtr = _lookup<
+  late final _trailingZeros_64Ptr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Uint64)>>(
+          'trailingZeros_64');
+  late final _trailingZeros_64 =
+      _trailingZeros_64Ptr.asFunction<int Function(int)>();
+
+  void printBitBoard(
+    int bitboard,
+  ) {
+    return _printBitBoard(
+      bitboard,
+    );
+  }
+
+  late final _printBitBoardPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Uint64)>>(
+          'printBitBoard');
+  late final _printBitBoard =
+      _printBitBoardPtr.asFunction<void Function(int)>();
+
+  void printBin(
+    int num,
+  ) {
+    return _printBin(
+      num,
+    );
+  }
+
+  late final _printBinPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Uint64)>>('printBin');
+  late final _printBin = _printBinPtr.asFunction<void Function(int)>();
+
+  void magicBitBoardInitialize() {
+    return _magicBitBoardInitialize();
+  }
+
+  late final _magicBitBoardInitializePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function()>>(
+          'magicBitBoardInitialize');
+  late final _magicBitBoardInitialize =
+      _magicBitBoardInitializePtr.asFunction<void Function()>();
+
+  void magicBitBoardTerminate() {
+    return _magicBitBoardTerminate();
+  }
+
+  late final _magicBitBoardTerminatePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function()>>(
+          'magicBitBoardTerminate');
+  late final _magicBitBoardTerminate =
+      _magicBitBoardTerminatePtr.asFunction<void Function()>();
+
+  late final ffi.Pointer<ffi.Pointer<ffi.Uint64>> _kingMovementMask =
+      _lookup<ffi.Pointer<ffi.Uint64>>('kingMovementMask');
+
+  ffi.Pointer<ffi.Uint64> get kingMovementMask => _kingMovementMask.value;
+
+  set kingMovementMask(ffi.Pointer<ffi.Uint64> value) =>
+      _kingMovementMask.value = value;
+
+  late final ffi.Pointer<ffi.Pointer<ffi.Uint64>> _knightMovementMask =
+      _lookup<ffi.Pointer<ffi.Uint64>>('knightMovementMask');
+
+  ffi.Pointer<ffi.Uint64> get knightMovementMask => _knightMovementMask.value;
+
+  set knightMovementMask(ffi.Pointer<ffi.Uint64> value) =>
+      _knightMovementMask.value = value;
+
+  int getRookPseudoLegalMovesBitBoard(
+    int position,
+    int blockingBitBoard,
+  ) {
+    return _getRookPseudoLegalMovesBitBoard(
+      position,
+      blockingBitBoard,
+    );
+  }
+
+  late final _getRookPseudoLegalMovesBitBoardPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint64 Function(ffi.Int, ffi.Uint64)>>(
+          'getRookPseudoLegalMovesBitBoard');
+  late final _getRookPseudoLegalMovesBitBoard =
+      _getRookPseudoLegalMovesBitBoardPtr.asFunction<int Function(int, int)>();
+
+  late final ffi.Pointer<ffi.Pointer<ffi.Uint64>> _bishopMovementMask =
+      _lookup<ffi.Pointer<ffi.Uint64>>('bishopMovementMask');
+
+  ffi.Pointer<ffi.Uint64> get bishopMovementMask => _bishopMovementMask.value;
+
+  set bishopMovementMask(ffi.Pointer<ffi.Uint64> value) =>
+      _bishopMovementMask.value = value;
+
+  int getBishopPseudoLegalMovesBitBoard(
+    int position,
+    int blockingBitBoard,
+  ) {
+    return _getBishopPseudoLegalMovesBitBoard(
+      position,
+      blockingBitBoard,
+    );
+  }
+
+  late final _getBishopPseudoLegalMovesBitBoardPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint64 Function(ffi.Int, ffi.Uint64)>>(
+          'getBishopPseudoLegalMovesBitBoard');
+  late final _getBishopPseudoLegalMovesBitBoard =
+      _getBishopPseudoLegalMovesBitBoardPtr
+          .asFunction<int Function(int, int)>();
+
+  int pieceColor(
+    int piece,
+  ) {
+    return _pieceColor(
+      piece,
+    );
+  }
+
+  late final _pieceColorPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(Piece)>>('pieceColor');
+  late final _pieceColor = _pieceColorPtr.asFunction<int Function(int)>();
+
+  int pieceType(
+    int piece,
+  ) {
+    return _pieceType(
+      piece,
+    );
+  }
+
+  late final _pieceTypePtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(Piece)>>('pieceType');
+  late final _pieceType = _pieceTypePtr.asFunction<int Function(int)>();
+
+  int makePiece(
+    int color,
+    int type,
+  ) {
+    return _makePiece(
+      color,
+      type,
+    );
+  }
+
+  late final _makePiecePtr =
+      _lookup<ffi.NativeFunction<Piece Function(ffi.Int32, ffi.Int32)>>(
+          'makePiece');
+  late final _makePiece = _makePiecePtr.asFunction<int Function(int, int)>();
+
+  int fromSquareFromMove(
+    int move,
+  ) {
+    return _fromSquareFromMove(
+      move,
+    );
+  }
+
+  late final _fromSquareFromMovePtr =
+      _lookup<ffi.NativeFunction<ffi.Char Function(Move)>>(
+          'fromSquareFromMove');
+  late final _fromSquareFromMove =
+      _fromSquareFromMovePtr.asFunction<int Function(int)>();
+
+  int toSquareFromMove(
+    int move,
+  ) {
+    return _toSquareFromMove(
+      move,
+    );
+  }
+
+  late final _toSquareFromMovePtr =
+      _lookup<ffi.NativeFunction<ffi.Char Function(Move)>>('toSquareFromMove');
+  late final _toSquareFromMove =
+      _toSquareFromMovePtr.asFunction<int Function(int)>();
+
+  int flagFromMove(
+    int move,
+  ) {
+    return _flagFromMove(
+      move,
+    );
+  }
+
+  late final _flagFromMovePtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(Move)>>('flagFromMove');
+  late final _flagFromMove = _flagFromMovePtr.asFunction<int Function(int)>();
+
+  int createMove(
+    int from,
+    int to,
+    int flag,
+  ) {
+    return _createMove(
+      from,
+      to,
+      flag,
+    );
+  }
+
+  late final _createMovePtr =
+      _lookup<ffi.NativeFunction<Move Function(ffi.Int, ffi.Int, ffi.Int32)>>(
+          'createMove');
+  late final _createMove =
+      _createMovePtr.asFunction<int Function(int, int, int)>();
+
+  int nbMovesInArray(
+    ffi.Pointer<Move> moves,
+  ) {
+    return _nbMovesInArray(
+      moves,
+    );
+  }
+
+  late final _nbMovesInArrayPtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Pointer<Move>)>>(
+          'nbMovesInArray');
+  late final _nbMovesInArray =
+      _nbMovesInArrayPtr.asFunction<int Function(ffi.Pointer<Move>)>();
+
+  /// Returns the bit board of a specific piece
+  int bitBoardForPiece(
+    Board board,
+    int piece,
+  ) {
+    return _bitBoardForPiece(
+      board,
+      piece,
+    );
+  }
+
+  late final _bitBoardForPiecePtr =
+      _lookup<ffi.NativeFunction<ffi.Uint64 Function(Board, Piece)>>(
+          'bitBoardForPiece');
+  late final _bitBoardForPiece =
+      _bitBoardForPiecePtr.asFunction<int Function(Board, int)>();
+
+  int whitePiecesBitBoard(
+    Board board,
+  ) {
+    return _whitePiecesBitBoard(
+      board,
+    );
+  }
+
+  late final _whitePiecesBitBoardPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint64 Function(Board)>>(
+          'whitePiecesBitBoard');
+  late final _whitePiecesBitBoard =
+      _whitePiecesBitBoardPtr.asFunction<int Function(Board)>();
+
+  int blackPiecesBitBoard(
+    Board board,
+  ) {
+    return _blackPiecesBitBoard(
+      board,
+    );
+  }
+
+  late final _blackPiecesBitBoardPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint64 Function(Board)>>(
+          'blackPiecesBitBoard');
+  late final _blackPiecesBitBoard =
+      _blackPiecesBitBoardPtr.asFunction<int Function(Board)>();
+
+  int allPiecesBitBoard(
+    Board board,
+  ) {
+    return _allPiecesBitBoard(
+      board,
+    );
+  }
+
+  late final _allPiecesBitBoardPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint64 Function(Board)>>(
+          'allPiecesBitBoard');
+  late final _allPiecesBitBoard =
+      _allPiecesBitBoardPtr.asFunction<int Function(Board)>();
+
+  /// Returns the piece at a specific index
+  int pieceAtIndex(
+    Board board,
+    int index,
+  ) {
+    return _pieceAtIndex(
+      board,
+      index,
+    );
+  }
+
+  late final _pieceAtIndexPtr =
+      _lookup<ffi.NativeFunction<Piece Function(Board, ffi.Int)>>(
+          'pieceAtIndex');
+  late final _pieceAtIndex =
+      _pieceAtIndexPtr.asFunction<int Function(Board, int)>();
+
+  /// Will toggle the bits at a specific index for a piece to the opposite state.
+  /// If you pass in the NOPIECE piece (0) it will lead to undefined behaviour
+  void togglePieceAtIndex(
+    ffi.Pointer<Board> board,
+    int index,
+    int piece,
+  ) {
+    return _togglePieceAtIndex(
+      board,
+      index,
+      piece,
+    );
+  }
+
+  late final _togglePieceAtIndexPtr = _lookup<
       ffi.NativeFunction<
-          ffi.Pointer<Moves> Function(ffi.Pointer<GameState>,
-              ffi.Pointer<GameStates>)>>('getValidMoves');
-  late final _getValidMoves = _getValidMovesPtr.asFunction<
-      ffi.Pointer<Moves> Function(
-          ffi.Pointer<GameState>, ffi.Pointer<GameStates>)>();
+          ffi.Void Function(
+              ffi.Pointer<Board>, ffi.Int, Piece)>>('togglePieceAtIndex');
+  late final _togglePieceAtIndex = _togglePieceAtIndexPtr
+      .asFunction<void Function(ffi.Pointer<Board>, int, int)>();
+
+  void handleMove(
+    ffi.Pointer<Board> board,
+    int from,
+    int to,
+  ) {
+    return _handleMove(
+      board,
+      from,
+      to,
+    );
+  }
+
+  late final _handleMovePtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+              ffi.Pointer<Board>, ffi.Int, ffi.Int)>>('handleMove');
+  late final _handleMove =
+      _handleMovePtr.asFunction<void Function(ffi.Pointer<Board>, int, int)>();
+
+  /// Converts and puts the information in the piece's `array` to the `result` board.
+  /// The index of a piece in the array represents its position on the board.
+  /// 0 is the top left corner, and 63 is the bottom right corner.
+  void fromArray(
+    ffi.Pointer<Board> result,
+    ffi.Pointer<Piece> array,
+  ) {
+    return _fromArray(
+      result,
+      array,
+    );
+  }
+
+  late final _fromArrayPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+              ffi.Pointer<Board>, ffi.Pointer<Piece>)>>('fromArray');
+  late final _fromArray = _fromArrayPtr
+      .asFunction<void Function(ffi.Pointer<Board>, ffi.Pointer<Piece>)>();
+
+  /// Returns the number of elements in an array of gamestates.
+  /// Assumes that the last element of the array is 0
+  int nbGameStatesInArray(
+    ffi.Pointer<GameState> gameStates,
+  ) {
+    return _nbGameStatesInArray(
+      gameStates,
+    );
+  }
+
+  late final _nbGameStatesInArrayPtr =
+      _lookup<ffi.NativeFunction<ffi.Size Function(ffi.Pointer<GameState>)>>(
+          'nbGameStatesInArray');
+  late final _nbGameStatesInArray = _nbGameStatesInArrayPtr
+      .asFunction<int Function(ffi.Pointer<GameState>)>();
 
   ffi.Pointer<GameState> createState(
-    ffi.Pointer<ffi.Int> boardArray,
+    Board board,
     int colorToGo,
     int castlingPerm,
     int enPassantTargetSquare,
@@ -46,7 +407,7 @@ class _NativeLibrary {
     int nbMoves,
   ) {
     return _createState(
-      boardArray,
+      board,
       colorToGo,
       castlingPerm,
       enPassantTargetSquare,
@@ -57,27 +418,12 @@ class _NativeLibrary {
 
   late final _createStatePtr = _lookup<
       ffi.NativeFunction<
-          ffi.Pointer<GameState> Function(ffi.Pointer<ffi.Int>, ffi.Int,
-              ffi.Int, ffi.Int, ffi.Int, ffi.Int)>>('createState');
+          ffi.Pointer<GameState> Function(Board, ffi.Int, ffi.Int, ffi.Int,
+              ffi.Int, ffi.Int)>>('createState');
   late final _createState = _createStatePtr.asFunction<
-      ffi.Pointer<GameState> Function(
-          ffi.Pointer<ffi.Int>, int, int, int, int, int)>();
+      ffi.Pointer<GameState> Function(Board, int, int, int, int, int)>();
 
-  /// Utility function to make a copy of a GameState
-  GameState copyState(
-    GameState from,
-  ) {
-    return _copyState(
-      from,
-    );
-  }
-
-  late final _copyStatePtr =
-      _lookup<ffi.NativeFunction<GameState Function(GameState)>>('copyState');
-  late final _copyState =
-      _copyStatePtr.asFunction<GameState Function(GameState)>();
-
-  ffi.Pointer<GameState> setGameStateFromFenString(
+  bool setGameStateFromFenString(
     ffi.Pointer<ffi.Char> fenString,
     ffi.Pointer<GameState> result,
   ) {
@@ -89,12 +435,32 @@ class _NativeLibrary {
 
   late final _setGameStateFromFenStringPtr = _lookup<
       ffi.NativeFunction<
-          ffi.Pointer<GameState> Function(ffi.Pointer<ffi.Char>,
+          ffi.Bool Function(ffi.Pointer<ffi.Char>,
               ffi.Pointer<GameState>)>>('setGameStateFromFenString');
   late final _setGameStateFromFenString =
       _setGameStateFromFenStringPtr.asFunction<
-          ffi.Pointer<GameState> Function(
-              ffi.Pointer<ffi.Char>, ffi.Pointer<GameState>)>();
+          bool Function(ffi.Pointer<ffi.Char>, ffi.Pointer<GameState>)>();
+
+  /// Returns the valid moves in a given position
+  /// The results array is assumed to be 0 initialized
+  void getValidMoves(
+    ffi.Pointer<Move> results,
+    GameState currentGameState,
+    ffi.Pointer<GameState> previousStates,
+  ) {
+    return _getValidMoves(
+      results,
+      currentGameState,
+      previousStates,
+    );
+  }
+
+  late final _getValidMovesPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(ffi.Pointer<Move>, GameState,
+              ffi.Pointer<GameState>)>>('getValidMoves');
+  late final _getValidMoves = _getValidMovesPtr.asFunction<
+      void Function(ffi.Pointer<Move>, GameState, ffi.Pointer<GameState>)>();
 
   void makeMove(
     int move,
@@ -112,37 +478,60 @@ class _NativeLibrary {
   late final _makeMove =
       _makeMovePtr.asFunction<void Function(int, ffi.Pointer<GameState>)>();
 
-  ffi.Pointer<Moves> bestMovesAccordingToComputer(
-    int depth,
-    ffi.Pointer<GameState> state,
-    ffi.Pointer<GameStates> previousStates,
+  /// Returns the best move in a position (according to the computer)
+  /// TODO: Implement time control later
+  int think(
+    GameState state,
+    ffi.Pointer<GameState> previousStates,
   ) {
-    return _bestMovesAccordingToComputer(
-      depth,
+    return _think(
       state,
       previousStates,
     );
   }
 
-  late final _bestMovesAccordingToComputerPtr = _lookup<
-      ffi.NativeFunction<
-          ffi.Pointer<Moves> Function(ffi.Int, ffi.Pointer<GameState>,
-              ffi.Pointer<GameStates>)>>('bestMovesAccordingToComputer');
-  late final _bestMovesAccordingToComputer =
-      _bestMovesAccordingToComputerPtr.asFunction<
-          ffi.Pointer<Moves> Function(
-              int, ffi.Pointer<GameState>, ffi.Pointer<GameStates>)>();
+  late final _thinkPtr = _lookup<
+          ffi.NativeFunction<Move Function(GameState, ffi.Pointer<GameState>)>>(
+      'think');
+  late final _think =
+      _thinkPtr.asFunction<int Function(GameState, ffi.Pointer<GameState>)>();
 }
 
-/// Dynamic array of moves. Use the da_append macro to append moves
-class moves extends ffi.Struct {
-  external ffi.Pointer<Move> items;
+abstract class PieceCharacteristics {
+  static const int NOPIECE = 0;
+  static const int KING = 1;
+  static const int KNIGHT = 2;
+  static const int BISHOP = 3;
+  static const int QUEEN = 4;
+  static const int ROOK = 5;
+  static const int PAWN = 6;
+  static const int WHITE = 8;
+  static const int BLACK = 16;
+}
 
-  @ffi.Size()
-  external int count;
+/// A piece is char that contains the color and the type of the piece.
+/// The piece type is in the first 3 least significant bits.
+/// The piece color is the next 2 bits that follow the piece type bits
+/// The first 3 most significant bits of the char are unused.
+/// Use the pieceColor(piece) function or pieceType(piece) function to extract those information
+/// Use the makePiece(color, type) function to create a valid Piece
+typedef Piece = ffi.Char;
 
-  @ffi.Size()
-  external int capacity;
+/// A flag is a 4 bit number which tells additional information
+/// about move, e.g. that it leads to a promotion or a checkmate.
+abstract class Flag {
+  static const int NOFlAG = 0;
+  static const int EN_PASSANT = 1;
+  static const int DOUBLE_PAWN_PUSH = 2;
+  static const int KING_SIDE_CASTLING = 3;
+  static const int QUEEN_SIDE_CASTLING = 4;
+  static const int PROMOTE_TO_QUEEN = 5;
+  static const int PROMOTE_TO_KNIGHT = 6;
+  static const int PROMOTE_TO_ROOK = 7;
+  static const int PROMOTE_TO_BISHOP = 8;
+  static const int STALEMATE = 9;
+  static const int CHECKMATE = 10;
+  static const int DRAW = 11;
 }
 
 /// The structure is copied from Sebastian Lague chess program
@@ -152,10 +541,17 @@ class moves extends ffi.Struct {
 /// bit 12-15: flag
 typedef Move = ffi.UnsignedShort;
 
-class GameState extends ffi.Struct {
-  external ffi.Pointer<ffi.Int> boardArray;
+/// A struct which holds the information of the chess board, so which piece is at which square.
+/// Use the pieceAtIndex function to extract that information
+class Board extends ffi.Struct {
+  @ffi.Array.multi([14])
+  external ffi.Array<ffi.Uint64> bitboards;
+}
 
-  @ffi.Int()
+class GameState extends ffi.Struct {
+  external Board board;
+
+  @ffi.Int32()
   external int colorToGo;
 
   @ffi.Int()
@@ -170,26 +566,3 @@ class GameState extends ffi.Struct {
   @ffi.Int()
   external int nbMoves;
 }
-
-/// Dynamic array of GameState. Use the da_append macro to append GameState
-class gameStates extends ffi.Struct {
-  external ffi.Pointer<GameState> items;
-
-  @ffi.Size()
-  external int count;
-
-  @ffi.Size()
-  external int capacity;
-}
-
-/// Dynamic array of moves. Use the da_append macro to append moves
-typedef Moves = moves;
-
-/// Dynamic array of GameState. Use the da_append macro to append GameState
-typedef GameStates = gameStates;
-
-const int BOARD_SIZE = 64;
-
-const int _pieceColorBitMask = 24;
-
-const int _pieceTypeBitMask = 7;

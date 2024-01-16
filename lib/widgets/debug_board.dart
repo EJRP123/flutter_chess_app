@@ -50,6 +50,7 @@ class _DebugBoardState extends State<DebugBoard> {
   @override
   void dispose() {
     // Clean up the controller when the widget is disposed.
+    _engine.terminate();
     _myController.dispose();
     super.dispose();
   }
@@ -104,7 +105,7 @@ class _DebugBoardState extends State<DebugBoard> {
                         Colors.yellowAccent.withOpacity(0.5), color);
                   }
                 }
-                final Piece piece = _gameState.boardArray[index];
+                final ChessPiece piece = _gameState.boardArray[index];
                 final isHighlighted = _highlightedSquares[index];
                 return GestureDetector(
                     onTap: () {
@@ -264,7 +265,7 @@ typedef _DroppedPiece = void Function(int from, int to);
 
 class _Square extends StatelessWidget {
   final int index;
-  final Piece piece;
+  final ChessPiece piece;
   final Color color;
   final bool isHighlighted;
   final _DroppedPiece droppedPiece;

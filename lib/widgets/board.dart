@@ -12,18 +12,18 @@ import 'dialogs.dart';
 import 'draggable_widget.dart';
 import 'routes.dart';
 
-class Board extends StatefulWidget {
+class ChessBoard extends StatefulWidget {
   final Color color1 = const Color.fromRGBO(235, 235, 208, 1.0);
   final Color color2 = const Color.fromRGBO(119, 148, 85, 1.0);
 
   final PieceColor humanPieceColor;
 
-  Board(this.humanPieceColor, {Key? key}) : super(key: key) {
+  ChessBoard(this.humanPieceColor, {Key? key}) : super(key: key) {
     ChessEngine.init(dynamicLibProvider());
   }
 
   @override
-  State<Board> createState() => _BoardState();
+  State<ChessBoard> createState() => _ChessBoardState();
 }
 
 // Plan:
@@ -38,7 +38,7 @@ class Board extends StatefulWidget {
 //    - Depth of computer
 //    - StockFish analysis?
 
-class _BoardState extends State<Board> {
+class _ChessBoardState extends State<ChessBoard> {
   late final ChessGameState _gameState;
   late List<ChessMove> _currentLegalMoves;
   late final LinkedHashMap<ChessMove, ChessGameState> _movesMade;
@@ -63,6 +63,12 @@ class _BoardState extends State<Board> {
         ? PieceColor.black
         : PieceColor.white;
     resetBoard();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    _engine.terminate();
   }
 
   List<ChessGameState> get _previousStates {
@@ -113,7 +119,7 @@ class _BoardState extends State<Board> {
                         Colors.yellowAccent.withOpacity(0.5), color);
                   }
                 }
-                final Piece piece = _gameState.boardArray[index];
+                final ChessPiece piece = _gameState.boardArray[index];
                 final isDraggable = piece.color != _aiPieceColor;
                 final isHighlighted = _highlightedSquares[index];
                 return GestureDetector(
@@ -328,7 +334,7 @@ class _BoardState extends State<Board> {
   // TODO AI is very slow, like slower without move ordering
   Future<void> makeAiResponseMove() async {
     final responseMoves = await compute<AiMoveParam, List<ChessMove>>(
-        getMoveFromAiIsolate, AiMoveParam(_gameState, _previousStates, 3));
+        getMoveFromAiIsolate, AiMoveParam(_gameState, _previousStates));
     makeMove(responseMoves[Random().nextInt(responseMoves.length)]);
   }
 }
@@ -337,7 +343,7 @@ typedef DroppedPiece = void Function(int from, int to);
 
 class Square extends StatelessWidget {
   final int index;
-  final Piece piece;
+  final ChessPiece piece;
   final Color color;
   final bool isHighlighted;
   final bool isDraggable;

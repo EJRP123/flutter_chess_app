@@ -1,5 +1,7 @@
 part of 'chess_engine.dart';
 
+const int BOARD_SIZE = 64;
+
 enum MoveFlag {
   noFlag,
   enPassant,
@@ -35,16 +37,16 @@ enum MoveFlag {
 enum PieceType {
   none,
   king,
-  queen,
   knight,
   bishop,
+  queen,
   rook,
   pawn;
 
   int get value => index; // For consistency with PieceColor
 
   PieceType fromInt(int value) =>
-      PieceType.values[value & Piece.pieceTypeBitMask];
+      PieceType.values[value & ChessPiece.pieceTypeBitMask];
 }
 
 enum PieceColor {
@@ -64,20 +66,20 @@ enum PieceColor {
   }
 
   static PieceColor fromInt(int value) =>
-      PieceColor.values[(value & Piece.pieceColorBitMask) ~/ 8];
+      PieceColor.values[(value & ChessPiece.pieceColorBitMask) ~/ 8];
 }
 
-class Piece {
-  static const int pieceColorBitMask = _pieceColorBitMask;
-  static const int pieceTypeBitMask = _pieceTypeBitMask;
-  static final Piece none = Piece.fromInt(PieceType.none.value);
+class ChessPiece {
+  static const int pieceColorBitMask = 24; // 0b11000
+  static const int pieceTypeBitMask = 7; // 0b111
+  static final ChessPiece none = ChessPiece.fromInt(PieceType.none.value);
 
   late final int value;
-  Piece(PieceColor color, PieceType type) {
+  ChessPiece(PieceColor color, PieceType type) {
     value = color.value | type.value;
   }
 
-  Piece.fromInt(this.value);
+  ChessPiece.fromInt(this.value);
 
   PieceColor get color => PieceColor.values[(value & pieceColorBitMask) ~/ 8];
   PieceType get type => PieceType.values[value & pieceTypeBitMask];
@@ -108,7 +110,7 @@ class Piece {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is Piece &&
+      other is ChessPiece &&
           runtimeType == other.runtimeType &&
           value == other.value;
 
@@ -139,8 +141,8 @@ class ChessMove {
   }
 
   String toStringWithBoard(ChessGameState state) {
-    return '${Piece.fromInt(state.boardArray[startSquare].value)} ($startSquare) '
-        'to ${Piece.fromInt(state.boardArray[endSquare].value)} ($endSquare)';
+    return '${ChessPiece.fromInt(state.boardArray[startSquare].value)} ($startSquare) '
+        'to ${ChessPiece.fromInt(state.boardArray[endSquare].value)} ($endSquare)';
   }
 
   @override
@@ -150,9 +152,8 @@ class ChessMove {
 }
 
 // TODO: Make this class immutable
-// TODO: Replace the int for castling perm by a Castling class
 class ChessGameState {
-  final List<Piece> boardArray;
+  final List<ChessPiece> boardArray;
   PieceColor colorToGo;
   int castlingPerm;
   int enPassantTargetSquare;
@@ -187,7 +188,7 @@ class ChessGameState {
     ChessEngine()._library.makeMove(cMove, cState);
     // Update the dart state
     for (int i = 0; i < BOARD_SIZE; i++) {
-      boardArray[i] = Piece.fromInt(cState.ref.boardArray.elementAt(i).value);
+      boardArray[i] = ChessPiece.fromInt(ChessEngine()._library.pieceAtIndex(cState.ref.board, i));
     }
     colorToGo = PieceColor.fromInt(cState.ref.colorToGo);
     castlingPerm = cState.ref.castlingPerm;
@@ -195,7 +196,6 @@ class ChessGameState {
     turnsForFiftyRule = cState.ref.turnsForFiftyRule;
     nbMoves = cState.ref.nbMoves;
 
-    malloc.free(cState.ref.boardArray);
     malloc.free(cState);
   }
 
@@ -212,7 +212,7 @@ class ChessGameState {
         emptySpots = 0;
       }
       final piece = boardArray[i];
-      if (piece == Piece.none) {
+      if (piece == ChessPiece.none) {
         emptySpots++;
       } else {
         fenString += (emptySpots != 0) ? "$emptySpots${piece.fenChar()}" : piece.fenChar();
@@ -285,14 +285,13 @@ class ChessGameState {
     }
     final cFenString = fenString.toNativeUtf8().cast<ffi.Char>();
 
-    final cState = ChessEngine()
-        ._library
-        .setGameStateFromFenString(cFenString, ffi.nullptr);
+    final cState = malloc<GameState>();
+    ChessEngine()._library.setGameStateFromFenString(cFenString, cState);
     malloc.free(cFenString);
-    final boardArray = List.filled(BOARD_SIZE, Piece.fromInt(0));
+    final boardArray = List.filled(BOARD_SIZE, ChessPiece.fromInt(0));
 
     for (int i = 0; i < BOARD_SIZE; i++) {
-      boardArray[i] = Piece.fromInt(cState.ref.boardArray.elementAt(i).value);
+      boardArray[i] = ChessPiece.fromInt(ChessEngine()._library.pieceAtIndex(cState.ref.board, i));
     }
 
     final result = ChessGameState(
@@ -303,7 +302,6 @@ class ChessGameState {
         cState.ref.turnsForFiftyRule,
         cState.ref.nbMoves);
 
-    malloc.free(cState.ref.boardArray);
     malloc.free(cState);
 
     return result;
@@ -316,7 +314,7 @@ class ChessGameState {
       ChessGameState.fromFenString(startingFenString);
 }
 
-List<Piece> _copyList(List<Piece> list) {
+List<ChessPiece> _copyList(List<ChessPiece> list) {
   return List.generate(list.length, (index) => list[index], growable: false);
 }
 
@@ -326,6 +324,7 @@ class ChessEngine {
   ChessEngine.init(ffi.DynamicLibrary dynamicLibrary) {
     if (_onlyInstance == null) {
       _library = _NativeLibrary(dynamicLibrary);
+      _library.magicBitBoardInitialize();
       _onlyInstance = this;
     }
   }
@@ -339,95 +338,80 @@ class ChessEngine {
     return _onlyInstance!;
   }
 
-  List<ChessMove> getMovesFromState(
-      ChessGameState gameState, List<ChessGameState> previousStates) {
-    final state = _dartStateToCState(gameState);
+  List<ChessMove> getMovesFromState(ChessGameState gameState, List<ChessGameState> previousStates) {
 
-    final gameStatesPtr = malloc<GameStates>();
-    gameStatesPtr.ref.items = previousStates.isNotEmpty
-        ? malloc<GameState>(ffi.sizeOf<GameState>() * previousStates.length)
-        : ffi.nullptr;
-    gameStatesPtr.ref.capacity = previousStates.length;
-    gameStatesPtr.ref.count = previousStates.length;
+    final cCurrentState = _dartStateToCState(gameState);
+
+    int previousStatesSize = previousStates.length + 1;
+    final cPreviousStates = calloc.allocate<GameState>(ffi.sizeOf<GameState>() * previousStatesSize);
     for (int i = 0; i < previousStates.length; i++) {
       final pointerToState = _dartStateToCState(previousStates[i]);
-      gameStatesPtr.ref.items.elementAt(i).ref = pointerToState.ref;
+      cPreviousStates.elementAt(i).ref = pointerToState.ref;
     }
-    return _getMovesFromPointerState(state, gameStatesPtr);
+
+    // Here I put 256 because it is the power of 2 closest to the MAX_LEGAL_MOVES (218)
+    final cResult = calloc.allocate<Move>(ffi.sizeOf<Move>() * 256);
+
+    _library.getValidMoves(cResult, cCurrentState.ref, cPreviousStates);
+
+    final nbMoves = _library.nbMovesInArray(cResult);
+    final result = <ChessMove>[];
+
+    for (int i = 0; i < nbMoves; i++) {
+      final move = cResult.elementAt(i);
+      final chessMove = ChessMove.fromInt(move.value);
+      result.add(chessMove);
+    }
+
+    malloc.free(cCurrentState);
+    calloc.free(cPreviousStates);
+    calloc.free(cResult);
+    return result;
   }
 
-  List<ChessMove> _getMovesFromPointerState(
-      ffi.Pointer<GameState> state, ffi.Pointer<GameStates> previousStates) {
-    final moves = _library.getValidMoves(state, previousStates);
-    // No memory leaks Please <(^uwu^)>
-    malloc.free(state.ref.boardArray);
-    malloc.free(state);
-    for (int i = 0; i < previousStates.ref.count; i++) {
-      malloc.free(previousStates.ref.items[i].boardArray);
+
+  List<ChessMove> getBestMovesAccordingToComputer(ChessGameState currentState, List<ChessGameState> previousStates) {
+    final cCurrentState = _dartStateToCState(currentState);
+
+    int previousStatesSize = previousStates.length + 1;
+    final cPreviousStates = calloc.allocate<GameState>(ffi.sizeOf<GameState>() * previousStatesSize);
+    for (int i = 0; i < previousStates.length; i++) {
+      final pointerToState = _dartStateToCState(previousStates[i]);
+      cPreviousStates.elementAt(i).ref = pointerToState.ref;
     }
-    if (previousStates.ref.capacity != 0) {
-      malloc.free(previousStates.ref.items);
-    }
-    malloc.free(previousStates);
-    final result = movesDAToDartList(moves);
-    malloc.free(moves.ref.items);
-    malloc.free(moves);
-    return result;
+
+    final cMoves = _library.think(cCurrentState.ref, cPreviousStates);
+
+    malloc.free(cCurrentState);
+    calloc.free(cPreviousStates);
+    return <ChessMove>[ChessMove.fromInt(cMoves)];
   }
 
   ffi.Pointer<GameState> _dartStateToCState(ChessGameState state) {
-    final boardPointer = malloc.allocate<ffi.Int>(ffi.sizeOf<ffi.Int>() * 64);
-    for (int i = 0; i < 64; i++) {
-      boardPointer.elementAt(i).value = state.boardArray[i].value;
+    final array = calloc.allocate<Piece>(ffi.sizeOf<Piece>() * BOARD_SIZE);
+    for (int i = 0; i < state.boardArray.length; i++) {
+      final piece = state.boardArray[i].value;
+      array.elementAt(i).value = piece;
     }
+    final board = calloc<Board>();
+    _library.fromArray(board, array);
+    calloc.free(array);
 
-    return _library.createState(
-        boardPointer,
-        state.colorToGo.value,
-        state.castlingPerm,
-        state.enPassantTargetSquare,
-        state.turnsForFiftyRule,
-        state.nbMoves);
-  }
+    final result = malloc<GameState>();
+    result.ref.board = board.ref;
+    calloc.free(board);
+    result.ref.colorToGo = state.colorToGo.value;
+    result.ref.castlingPerm = state.castlingPerm;
+    result.ref.enPassantTargetSquare = state.enPassantTargetSquare;
+    result.ref.turnsForFiftyRule = state.turnsForFiftyRule;
+    result.ref.nbMoves = state.nbMoves;
 
-  List<ChessMove> getBestMovesAccordingToComputer(int depth,
-      ChessGameState currentState, List<ChessGameState> previousStates) {
-    final currentStateC = _dartStateToCState(currentState);
-    final gameStatesPtr = malloc<GameStates>();
-    gameStatesPtr.ref.capacity = previousStates.length;
-    gameStatesPtr.ref.count = previousStates.length;
-    gameStatesPtr.ref.items = previousStates.isNotEmpty
-        ? malloc.allocate(ffi.sizeOf<GameState>() * gameStatesPtr.ref.capacity)
-        : ffi.nullptr;
-    for (int i = 0; i < previousStates.length; i++) {
-      final cState = _dartStateToCState(previousStates[i]);
-      gameStatesPtr.ref.items[i] = cState.ref;
-      malloc.free(cState);
-    }
-
-    final cMoves = _library.bestMovesAccordingToComputer(
-        depth, currentStateC, gameStatesPtr);
-    final moves = movesDAToDartList(cMoves);
-    malloc.free(cMoves.ref.items);
-    malloc.free(cMoves);
-    if (previousStates.isNotEmpty) {
-      for (int i = 0; i < gameStatesPtr.ref.count; i++) {
-        malloc.free(gameStatesPtr.ref.items.elementAt(i).ref.boardArray);
-      }
-      malloc.free(gameStatesPtr.ref.items);
-    }
-    malloc.free(gameStatesPtr);
-    malloc.free(currentStateC.ref.boardArray);
-    malloc.free(currentStateC);
-    return moves;
-  }
-
-  List<ChessMove> movesDAToDartList(ffi.Pointer<Moves> moves) {
-    final result = <ChessMove>[];
-    for (int i = 0; i < moves.ref.count; i++) {
-      result.add(ChessMove.fromInt(moves.ref.items[i]));
-    }
     return result;
+  }
+
+  void terminate() {
+    // We are good programmers and we clean up after ourselves
+    _library.magicBitBoardTerminate();
   }
 
   @override

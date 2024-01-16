@@ -17,9 +17,9 @@ class MainMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String whiteAsset =
-        "assets/images/${Piece(PieceColor.white, PieceType.king).toString().toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/${ChessPiece(PieceColor.white, PieceType.king).toString().toLowerCase().replaceAll(" ", "_")}.svg";
     String blackAsset =
-        "assets/images/${Piece(PieceColor.black, PieceType.king).toString().toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/${ChessPiece(PieceColor.black, PieceType.king).toString().toLowerCase().replaceAll(" ", "_")}.svg";
     return Material(
       color: Colors.grey,
       child: Row(
@@ -33,7 +33,7 @@ class MainMenu extends StatelessWidget {
                 },
                 child: SvgPicture.asset(whiteAsset,
                     semanticsLabel:
-                        Piece(PieceColor.white, PieceType.king)
+                    ChessPiece(PieceColor.white, PieceType.king)
                             .toString())),
           ),
           Expanded(
@@ -42,7 +42,7 @@ class MainMenu extends StatelessWidget {
               Navigator.push(context, getRouteBuilder(PieceColor.black));
             },
             child: SvgPicture.asset(blackAsset,
-                semanticsLabel: Piece(PieceColor.black, PieceType.king)
+                semanticsLabel: ChessPiece(PieceColor.black, PieceType.king)
                     .toString()),
           )),
           Expanded(
@@ -95,7 +95,7 @@ class GamePage extends StatelessWidget {
         backgroundColor: Colors.blueGrey,
         title: Text("Playing ${pieceColor.name} against AI"),
       ),
-      body: Center(child: Board(pieceColor)),
+      body: Center(child: ChessBoard(pieceColor)),
       backgroundColor: Colors.blueGrey,
     );
   }
@@ -123,22 +123,26 @@ class DebugPage extends StatelessWidget {
 List<ChessMove> getMoveFromAiIsolate(AiMoveParam param) {
   ChessEngine.init(
       dynamicLibProvider()); // Since this will be called in another isolate
-  return ChessEngine().getBestMovesAccordingToComputer(param.depth, param.state, param.previousStates);
+  final result = ChessEngine().getBestMovesAccordingToComputer(param.state, param.previousStates);
+  return result;
 }
 
 // I need to do this to use the Flutter compute function with multiple param
 class AiMoveParam {
   final ChessGameState state;
   final List<ChessGameState> previousStates;
-  final int depth;
 
-  AiMoveParam(this.state, this.previousStates, this.depth);
+  AiMoveParam(this.state, this.previousStates);
 }
 
 DynamicLibrary dynamicLibProvider() {
   // "Warming up" the engine
   if (!Platform.isWindows && !Platform.isLinux) {
     throw Exception("This app only supports Linux and Windows...");
+  }
+  // Temporary
+  if (Platform.isWindows) {
+    throw Exception("I did not compile the engine on Windows, I apologize for that, sorry :(");
   }
   var libPath = "";
   final libName =
