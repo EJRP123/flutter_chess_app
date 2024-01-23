@@ -22,10 +22,11 @@ class DebugBoard extends StatefulWidget {
   State<DebugBoard> createState() => _DebugBoardState();
 }
 
+// TODO: Test the fen string input and ctrl+z shortcut
 class _DebugBoardState extends State<DebugBoard> {
   late final ChessGameState _gameState;
   late List<ChessMove> _currentLegalMoves;
-  late final LinkedHashMap<ChessMove, ChessGameState> _movesMade;
+  late final LinkedHashMap<ChessMove, ChessGameState> _gameHistory;
 
   late int _clickedPieceIndex;
   late final List<bool> _highlightedSquares;
@@ -37,11 +38,11 @@ class _DebugBoardState extends State<DebugBoard> {
   @override
   void initState() {
     super.initState();
-    _gameState = ChessGameState.startingGameState();
     _engine = ChessEngine();
-    _movesMade = LinkedHashMap<ChessMove, ChessGameState>();
+    _gameState = _engine.startingGameState();
+    _gameHistory = LinkedHashMap<ChessMove, ChessGameState>();
     _highlightedSquares = List.filled(81, false);
-    _currentLegalMoves = _engine.getMovesFromState(_gameState, _previousStates);
+    _currentLegalMoves = _engine.getMovesFromState(_gameState);
     _clickedPieceIndex = -1;
     _myController = TextEditingController();
     resetBoard();
@@ -55,9 +56,6 @@ class _DebugBoardState extends State<DebugBoard> {
     super.dispose();
   }
 
-  List<ChessGameState> get _previousStates {
-    return _movesMade.values.toList();
-  }
 // rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8
   @override
   Widget build(BuildContext context) {
@@ -98,14 +96,15 @@ class _DebugBoardState extends State<DebugBoard> {
                   }
                 }
 
-                if (_movesMade.keys.isNotEmpty) {
-                  if (index == _movesMade.keys.last.startSquare ||
-                      index == _movesMade.keys.last.endSquare) {
+                if (_gameHistory.isNotEmpty) {
+                  if (index == _gameHistory.keys.last.startSquare ||
+                      index == _gameHistory.keys.last.endSquare) {
                     color = Color.alphaBlend(
                         Colors.yellowAccent.withOpacity(0.5), color);
                   }
                 }
-                final ChessPiece piece = _gameState.boardArray[index];
+
+                final ChessPiece piece = _gameState.currentState.boardArray[index];
                 final isHighlighted = _highlightedSquares[index];
                 return GestureDetector(
                     onTap: () {
@@ -139,10 +138,11 @@ class _DebugBoardState extends State<DebugBoard> {
               onEditingComplete: () {
                 try {
                   setState(() {
-                    _gameState.copyFrom(ChessGameState.fromFenString(_myController.text));
+                    // TODO: Set it so that it remembers what the state was before
+                    _gameState.copyFrom(_engine.fromFenString(_myController.text));
 
                     _currentLegalMoves =
-                        _engine.getMovesFromState(_gameState, _previousStates);
+                        _engine.getMovesFromState(_gameState);
                     _clickedPieceIndex = -1;
                     removeAllHighlightedSquares();
                   });
@@ -155,7 +155,7 @@ class _DebugBoardState extends State<DebugBoard> {
                 hintText: 'Enter a Fen String',
               ),
             ),
-            SelectableText(_gameState.toFenString(),
+            SelectableText(_gameState.currentState.toFenString(),
 
               style: const TextStyle(
                   fontSize: 28.0,
@@ -184,27 +184,31 @@ class _DebugBoardState extends State<DebugBoard> {
 
   void resetBoard() {
     setState(() {
-      // _gameState.copyFrom(ChessGameState.startingGameState());
-      _gameState.copyFrom(ChessGameState.startingGameState());
-      _movesMade.clear();
+      _gameState.copyFrom(_engine.startingGameState());
+      _gameHistory.clear();
       _currentLegalMoves =
-          _engine.getMovesFromState(_gameState, _previousStates);
+          _engine.getMovesFromState(_gameState);
       _clickedPieceIndex = -1;
       removeAllHighlightedSquares();
     });
   }
 
   void undoMove() {
-    if (_movesMade.isEmpty) {
+    if (_gameHistory.isEmpty) {
       return;
     }
-
-    _gameState.copyFrom(_movesMade.values.last);
-    _movesMade.remove(_movesMade.keys.last); // Undoing the last move made
+    
+    if (_gameState.previousStates.isNotEmpty) {
+      final newState = _gameState.previousStates.removeLast();
+      _gameState.currentState.copyFrom(newState);
+    } else {
+      _gameState.copyFrom(_gameHistory.values.last);
+    }
+    _gameHistory.remove(_gameHistory.keys.last); // Undoing the last move made
 
     setState(() {
       _currentLegalMoves =
-          _engine.getMovesFromState(_gameState, _previousStates);
+          _engine.getMovesFromState(_gameState);
       _clickedPieceIndex = -1;
       removeAllHighlightedSquares();
     });
@@ -223,10 +227,10 @@ class _DebugBoardState extends State<DebugBoard> {
 
   void makeMove(ChessMove move) {
     setState(() {
-      _movesMade[move] = _gameState.copy();
-      _gameState.makeMove(move);
+      _gameHistory[move] = ChessGameState.clone(_gameState);
+      _engine.makeMove(move, _gameState);
       _currentLegalMoves =
-          _engine.getMovesFromState(_gameState, _previousStates);
+          _engine.getMovesFromState(_gameState);
       _clickedPieceIndex = -1;
     });
   }
@@ -249,7 +253,7 @@ class _DebugBoardState extends State<DebugBoard> {
       final moveFlag = await showDialog(
           context: context,
           builder: (context) => PromotionDialog(
-              color: _gameState.colorToGo, contextOfPopup: context));
+              color: _gameState.currentState.colorToGo, contextOfPopup: context));
       return moves.where((e) => e.flag == moveFlag).first;
     } else {
       return moves.first;

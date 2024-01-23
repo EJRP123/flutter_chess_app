@@ -18,7 +18,7 @@ class ChessBoard extends StatefulWidget {
 
   final PieceColor humanPieceColor;
 
-  ChessBoard(this.humanPieceColor, {Key? key}) : super(key: key) {
+  ChessBoard(this.humanPieceColor, {super.key}) {
     ChessEngine.init(dynamicLibProvider());
   }
 
@@ -41,7 +41,7 @@ class ChessBoard extends StatefulWidget {
 class _ChessBoardState extends State<ChessBoard> {
   late final ChessGameState _gameState;
   late List<ChessMove> _currentLegalMoves;
-  late final LinkedHashMap<ChessMove, ChessGameState> _movesMade;
+  late final LinkedHashMap<ChessMove, ChessGameState> _gameHistory;
 
   late int _clickedPieceIndex;
   late final List<bool> _highlightedSquares;
@@ -53,11 +53,11 @@ class _ChessBoardState extends State<ChessBoard> {
   @override
   void initState() {
     super.initState();
-    _gameState = ChessGameState.startingGameState();
     _engine = ChessEngine();
-    _movesMade = LinkedHashMap<ChessMove, ChessGameState>();
+    _gameState = _engine.startingGameState();
+    _gameHistory = LinkedHashMap<ChessMove, ChessGameState>();
     _highlightedSquares = List.filled(81, false);
-    _currentLegalMoves = _engine.getMovesFromState(_gameState, _previousStates);
+    _currentLegalMoves = _engine.getMovesFromState(_gameState);
     _clickedPieceIndex = -1;
     _aiPieceColor = widget.humanPieceColor == PieceColor.white
         ? PieceColor.black
@@ -72,7 +72,7 @@ class _ChessBoardState extends State<ChessBoard> {
   }
 
   List<ChessGameState> get _previousStates {
-    return _movesMade.values.toList();
+    return _gameHistory.values.toList();
   }
 
   @override
@@ -91,7 +91,7 @@ class _ChessBoardState extends State<ChessBoard> {
           // Since Chess.com has the same behaviour in their app,
           // (you cannot take back a move while a bot is "thinking")
           // this is not a bug, but a feature
-          if (_gameState.colorToGo == _aiPieceColor) return;
+          if (_gameState.currentState.colorToGo == _aiPieceColor) return;
           undoMove();
           return null;
         })
@@ -112,14 +112,14 @@ class _ChessBoardState extends State<ChessBoard> {
                     : (changeColor)
                         ? widget.color2
                         : widget.color1;
-                if (_movesMade.keys.isNotEmpty) {
-                  if (index == _movesMade.keys.last.startSquare ||
-                      index == _movesMade.keys.last.endSquare) {
+                if (_gameHistory.keys.isNotEmpty) {
+                  if (index == _gameHistory.keys.last.startSquare ||
+                      index == _gameHistory.keys.last.endSquare) {
                     color = Color.alphaBlend(
                         Colors.yellowAccent.withOpacity(0.5), color);
                   }
                 }
-                final ChessPiece piece = _gameState.boardArray[index];
+                final ChessPiece piece = _gameState.currentState.boardArray[index];
                 final isDraggable = piece.color != _aiPieceColor;
                 final isHighlighted = _highlightedSquares[index];
                 return GestureDetector(
@@ -188,7 +188,7 @@ class _ChessBoardState extends State<ChessBoard> {
       final moveFlag = await showDialog(
           context: context,
           builder: (context) => PromotionDialog(
-              color: _gameState.colorToGo, contextOfPopup: context));
+              color: _gameState.currentState.colorToGo, contextOfPopup: context));
       return moves.where((e) => e.flag == moveFlag).first;
     } else {
       return moves.first;
@@ -200,19 +200,17 @@ class _ChessBoardState extends State<ChessBoard> {
   }
 
   bool computeGameEnd() {
-    final move0 = _currentLegalMoves[0];
-
-    if (move0.flag == MoveFlag.draw) {
+    if (_gameState.isDraw()) {
       draw();
       return true;
     }
 
-    if (move0.flag == MoveFlag.stalemate) {
+    if (_gameState.isStalemate()) {
       stalemate();
       return true;
     }
-    if (move0.flag == MoveFlag.checkmate) {
-      checkmate(_gameState.colorToGo == PieceColor.white
+    if (_gameState.isCheckmate()) {
+      checkmate(_gameState.currentState.colorToGo == PieceColor.white
           ? PieceColor.black
           : PieceColor.white);
       return true;
@@ -262,44 +260,43 @@ class _ChessBoardState extends State<ChessBoard> {
 
   void resetBoard() {
     setState(() {
-      // _gameState.copyFrom(ChessGameState.startingGameState());
-      _gameState.copyFrom(ChessGameState.startingGameState());
-      _movesMade.clear();
+      _gameState.copyFrom(_engine.startingGameState());
+      _gameHistory.clear();
       _currentLegalMoves =
-          _engine.getMovesFromState(_gameState, _previousStates);
+          _engine.getMovesFromState(_gameState);
       _clickedPieceIndex = -1;
       removeAllHighlightedSquares();
     });
-    if (_gameState.colorToGo == _aiPieceColor) {
+    if (_gameState.currentState.colorToGo == _aiPieceColor) {
       makeAiResponseMove(); // No need to compute game end cause impossible
     }
   }
 
   void undoMove() {
-    if (_movesMade.length <= 1) return;
-    if (_gameState.colorToGo == _aiPieceColor) {
-      _gameState.copyFrom(_movesMade.values.last);
-      _movesMade.remove(_movesMade.keys.last); // Undoing the player move
+    if (_gameHistory.length <= 1) return;
+    if (_gameState.currentState.colorToGo == _aiPieceColor) {
+      _gameState.copyFrom(_gameHistory.values.last);
+      _gameHistory.remove(_gameHistory.keys.last); // Undoing the player move
     } else {
-      _movesMade.remove(_movesMade.keys.last); // Undoing the ai move
-      if (_movesMade.isNotEmpty) {
-        _gameState.copyFrom(_movesMade.values.last);
-        _movesMade.remove(_movesMade.keys.last); // Undoing the player move
+      _gameHistory.remove(_gameHistory.keys.last); // Undoing the ai move
+      if (_gameHistory.isNotEmpty) {
+        _gameState.copyFrom(_gameHistory.values.last);
+        _gameHistory.remove(_gameHistory.keys.last); // Undoing the player move
       } else {
-        _gameState.copyFrom(ChessGameState.startingGameState());
+        _gameState.copyFrom(_engine.startingGameState());
       }
     }
 
     setState(() {
       _currentLegalMoves =
-          _engine.getMovesFromState(_gameState, _previousStates);
+          _engine.getMovesFromState(_gameState);
       _clickedPieceIndex = -1;
       removeAllHighlightedSquares();
     });
   }
 
   void droppedPiece(int from, int to) {
-    if (_gameState.colorToGo == _aiPieceColor) {
+    if (_gameState.currentState.colorToGo == _aiPieceColor) {
       return;
     }
     final potentialMove = _currentLegalMoves.firstWhere(
@@ -323,10 +320,10 @@ class _ChessBoardState extends State<ChessBoard> {
 
   void makeMove(ChessMove move) {
     setState(() {
-      _movesMade[move] = _gameState.copy();
-      _gameState.makeMove(move);
+      _gameHistory[move] = ChessGameState.clone(_gameState);
+      _engine.makeMove(move, _gameState);
       _currentLegalMoves =
-          _engine.getMovesFromState(_gameState, _previousStates);
+          _engine.getMovesFromState(_gameState);
       _clickedPieceIndex = -1;
     });
   }

@@ -1,6 +1,7 @@
 part of 'chess_engine.dart';
 
 const int BOARD_SIZE = 64;
+const startingFenString = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 enum MoveFlag {
   noFlag,
@@ -140,7 +141,7 @@ class ChessMove {
     return ChessMove(startSquare, endSquare, MoveFlag.fromInt(flag));
   }
 
-  String toStringWithBoard(ChessGameState state) {
+  String toStringWithBoard(ChessPositionState state) {
     return '${ChessPiece.fromInt(state.boardArray[startSquare].value)} ($startSquare) '
         'to ${ChessPiece.fromInt(state.boardArray[endSquare].value)} ($endSquare)';
   }
@@ -151,59 +152,38 @@ class ChessMove {
   }
 }
 
-// TODO: Make this class immutable
-class ChessGameState {
+class ChessPositionState {
   final List<ChessPiece> boardArray;
   PieceColor colorToGo;
   int castlingPerm;
   int enPassantTargetSquare;
   int turnsForFiftyRule;
   int nbMoves;
+  int zobristKey;
 
-  ChessGameState(this.boardArray, this.colorToGo, this.castlingPerm,
-      this.enPassantTargetSquare, this.turnsForFiftyRule, this.nbMoves);
+  ChessPositionState(this.boardArray, this.colorToGo, this.castlingPerm,
+      this.enPassantTargetSquare, this.turnsForFiftyRule, this.nbMoves, this.zobristKey);
 
-  ChessGameState copy() {
-    return ChessGameState(_copyList(boardArray), colorToGo, castlingPerm,
-        enPassantTargetSquare, turnsForFiftyRule, nbMoves);
-  }
+  ChessPositionState.clone(ChessPositionState original): this(List.from(original.boardArray, growable: true), original.colorToGo, original.castlingPerm,
+      original.enPassantTargetSquare, original.turnsForFiftyRule, original.nbMoves, original.zobristKey);
 
-  void copyFrom(ChessGameState src) {
+  void copyFrom(ChessPositionState other) {
     for (int i = 0; i < BOARD_SIZE; i++) {
-      boardArray[i] = src.boardArray[i];
+      boardArray[i] = other.boardArray[i];
     }
-    colorToGo = src.colorToGo;
-    castlingPerm = src.castlingPerm;
-    enPassantTargetSquare = src.enPassantTargetSquare;
-    nbMoves = src.nbMoves;
-    turnsForFiftyRule = src.turnsForFiftyRule;
-  }
-
-  void makeMove(ChessMove move) {
-    int from = move.startSquare;
-    int to = move.endSquare << 6;
-    int flag = move.flag.value << 12;
-    int cMove = from + to + flag;
-    final cState = ChessEngine()._dartStateToCState(this);
-    ChessEngine()._library.makeMove(cMove, cState);
-    // Update the dart state
-    for (int i = 0; i < BOARD_SIZE; i++) {
-      boardArray[i] = ChessPiece.fromInt(ChessEngine()._library.pieceAtIndex(cState.ref.board, i));
-    }
-    colorToGo = PieceColor.fromInt(cState.ref.colorToGo);
-    castlingPerm = cState.ref.castlingPerm;
-    enPassantTargetSquare = cState.ref.enPassantTargetSquare;
-    turnsForFiftyRule = cState.ref.turnsForFiftyRule;
-    nbMoves = cState.ref.nbMoves;
-
-    malloc.free(cState);
+    colorToGo = other.colorToGo;
+    castlingPerm = other.castlingPerm;
+    enPassantTargetSquare = other.enPassantTargetSquare;
+    turnsForFiftyRule = other.turnsForFiftyRule;
+    nbMoves = other.nbMoves;
+    zobristKey = other.zobristKey;
   }
 
   String toFenString() {
     var fenString = "";
     // Add board
     var emptySpots = 0;
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < BOARD_SIZE; i++) {
       if (i % 8 == 0 && i > 0) {
         if (emptySpots != 0) {
           fenString += emptySpots.toString();
@@ -240,7 +220,7 @@ class ChessGameState {
 
   String boardAsString() {
     String result = "";
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < BOARD_SIZE; i++) {
       final fenChar = boardArray[i].fenChar();
       result += (fenChar.isNotEmpty) ? "[ $fenChar ]" : "[   ]";
       if ((i + 1) % 8 == 0) {
@@ -253,14 +233,15 @@ class ChessGameState {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ChessGameState &&
-          runtimeType == other.runtimeType &&
-          boardArray == other.boardArray &&
-          colorToGo == other.colorToGo &&
-          castlingPerm == other.castlingPerm &&
-          enPassantTargetSquare == other.enPassantTargetSquare &&
-          turnsForFiftyRule == other.turnsForFiftyRule &&
-          nbMoves == other.nbMoves;
+          other is ChessPositionState &&
+              runtimeType == other.runtimeType &&
+              boardArray == other.boardArray &&
+              colorToGo == other.colorToGo &&
+              castlingPerm == other.castlingPerm &&
+              enPassantTargetSquare == other.enPassantTargetSquare &&
+              turnsForFiftyRule == other.turnsForFiftyRule &&
+              nbMoves == other.nbMoves &&
+              zobristKey == other.zobristKey;
 
   @override
   int get hashCode =>
@@ -269,53 +250,55 @@ class ChessGameState {
       castlingPerm.hashCode ^
       enPassantTargetSquare.hashCode ^
       turnsForFiftyRule.hashCode ^
-      nbMoves.hashCode;
-
-  static ChessGameState fromFenString(String fenString) {
-    final reg = RegExp(
-        "((([prnbqkPRNBQK12345678]*/){7})([prnbqkPRNBQK12345678]*)) (w|b) ((K?Q?k?q?)|-) (([abcdefgh][36])|-) (\\d*) (\\d*)");
-    if (!reg.hasMatch(fenString)) {
-      throw ArgumentError(
-          "The fen string $fenString is not formatted properly!");
-    }
-    if (fenString.length > 100) {
-      // This condition is to remove buffer overflow in the c code
-      throw ArgumentError(
-          "This program cannot parse fen string with a bigger length than 100");
-    }
-    final cFenString = fenString.toNativeUtf8().cast<ffi.Char>();
-
-    final cState = malloc<GameState>();
-    ChessEngine()._library.setGameStateFromFenString(cFenString, cState);
-    malloc.free(cFenString);
-    final boardArray = List.filled(BOARD_SIZE, ChessPiece.fromInt(0));
-
-    for (int i = 0; i < BOARD_SIZE; i++) {
-      boardArray[i] = ChessPiece.fromInt(ChessEngine()._library.pieceAtIndex(cState.ref.board, i));
-    }
-
-    final result = ChessGameState(
-        boardArray,
-        PieceColor.fromInt(cState.ref.colorToGo),
-        cState.ref.castlingPerm,
-        cState.ref.enPassantTargetSquare,
-        cState.ref.turnsForFiftyRule,
-        cState.ref.nbMoves);
-
-    malloc.free(cState);
-
-    return result;
-  }
-
-  static const startingFenString =
-      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
-  static ChessGameState startingGameState() =>
-      ChessGameState.fromFenString(startingFenString);
+      nbMoves.hashCode ^
+      zobristKey.hashCode;
 }
 
-List<ChessPiece> _copyList(List<ChessPiece> list) {
-  return List.generate(list.length, (index) => list[index], growable: false);
+// TODO: Make this class use a Pointer<ChessGame> to not always create and destroy these objects
+class ChessGameState {
+  final ChessPositionState currentState;
+  final List<ChessPositionState> previousStates;
+
+  const ChessGameState(this.currentState, this.previousStates);
+
+  ChessGameState.clone(ChessGameState other) : this(ChessPositionState.clone(other.currentState), List.from(other.previousStates));
+
+  void copyFrom(ChessGameState other) {
+    currentState.copyFrom(other.currentState);
+    for (int i = 0; i < other.previousStates.length; i++) {
+      previousStates[i] = other.previousStates[i];
+    }
+  }
+
+  bool isCheckmate() {
+    return ChessEngine().getMovesFromState(this).isEmpty && ChessEngine()._library.isKingInCheck();
+  }
+
+  bool isStalemate() {
+    return ChessEngine().getMovesFromState(this).isEmpty && !ChessEngine()._library.isKingInCheck();
+  }
+
+  bool isDrawByRepetition() {
+    bool hasOneDuplicate = false;
+
+    for (int i = 0; i < previousStates.length; i++) {
+      int key = previousStates[i].zobristKey;
+      if (key == currentState.zobristKey) {
+        if (hasOneDuplicate) {
+          return true;
+        }
+        hasOneDuplicate = true;
+      }
+    }
+
+    return false;
+  }
+
+  bool isDrawByFiftyMoveRule() {
+    return currentState.turnsForFiftyRule >= 50;
+  }
+
+  bool isDraw() => isDrawByFiftyMoveRule() || isDrawByRepetition();
 }
 
 class ChessEngine {
@@ -325,6 +308,7 @@ class ChessEngine {
     if (_onlyInstance == null) {
       _library = _NativeLibrary(dynamicLibrary);
       _library.magicBitBoardInitialize();
+      _library.zobristKeyInitialize();
       _onlyInstance = this;
     }
   }
@@ -338,33 +322,90 @@ class ChessEngine {
     return _onlyInstance!;
   }
 
-  List<ChessMove> getMovesFromState(ChessGameState gameState, List<ChessGameState> previousStates) {
+  ChessGameState startingGameState() => fromFenString(startingFenString);
+
+  ChessGameState fromFenString(String fenString) {
+    final reg = RegExp(
+        "((([prnbqkPRNBQK12345678]*/){7})([prnbqkPRNBQK12345678]*)) (w|b) ((K?Q?k?q?)|-) (([abcdefgh][36])|-) (\\d*) (\\d*)");
+    if (!reg.hasMatch(fenString)) {
+      throw ArgumentError(
+          "The fen string $fenString is not formatted properly!");
+    }
+    if (fenString.length > 100) {
+      // This condition is to remove buffer overflow in the c code
+      throw ArgumentError(
+          "This program cannot parse fen string with a bigger length than 100");
+    }
+    final cFenString = fenString.toNativeUtf8().cast<ffi.Char>();
+
+    final cState = ChessEngine()._library.newChessGame(ffi.nullptr, cFenString);
+    malloc.free(cFenString);
+    final boardArray = List.filled(BOARD_SIZE, ChessPiece.fromInt(0));
+
+    for (int i = 0; i < BOARD_SIZE; i++) {
+      boardArray[i] = ChessPiece.fromInt(ChessEngine()._library.pieceAtIndex(cState.ref.currentState.ref.board, i));
+    }
+
+    final chessPosition = ChessPositionState(
+        boardArray,
+        PieceColor.fromInt(cState.ref.currentState.ref.colorToGo),
+        cState.ref.currentState.ref.castlingPerm,
+        cState.ref.currentState.ref.enPassantTargetSquare,
+        cState.ref.currentState.ref.turnsForFiftyRule,
+        cState.ref.currentState.ref.nbMoves,
+        cState.ref.currentState.ref.key);
+
+    malloc.free(cState);
+
+    final result = ChessGameState(chessPosition, []);
+
+    return result;
+  }
+
+  void makeMove(ChessMove move, ChessGameState state) {
+    int from = move.startSquare;
+    int to = move.endSquare << 6;
+    int flag = move.flag.value << 12;
+    int cMove = from + to + flag;
+    final cState = _dartStateToCState(state);
+    _library.makeMove(cMove, cState);
+
+    // Update the dart state
+    state.previousStates.add(ChessPositionState.clone(state.currentState));
+
+    for (int i = 0; i < BOARD_SIZE; i++) {
+      state.currentState.boardArray[i] = ChessPiece.fromInt(_library.pieceAtIndex(cState.ref.currentState.ref.board, i));
+    }
+
+    state.currentState.colorToGo = PieceColor.fromInt(cState.ref.currentState.ref.colorToGo);
+    state.currentState.castlingPerm = cState.ref.currentState.ref.castlingPerm;
+    state.currentState.enPassantTargetSquare = cState.ref.currentState.ref.enPassantTargetSquare;
+    state.currentState.turnsForFiftyRule = cState.ref.currentState.ref.turnsForFiftyRule;
+    state.currentState.nbMoves = cState.ref.currentState.ref.nbMoves;
+    state.currentState.zobristKey = cState.ref.currentState.ref.key;
+
+    malloc.free(cState);
+  }
+
+  List<ChessMove> getMovesFromState(ChessGameState gameState) {
 
     final cCurrentState = _dartStateToCState(gameState);
 
-    int previousStatesSize = previousStates.length + 1;
-    final cPreviousStates = calloc.allocate<GameState>(ffi.sizeOf<GameState>() * previousStatesSize);
-    for (int i = 0; i < previousStates.length; i++) {
-      final pointerToState = _dartStateToCState(previousStates[i]);
-      cPreviousStates.elementAt(i).ref = pointerToState.ref;
-    }
-
     // Here I put 256 because it is the power of 2 closest to the MAX_LEGAL_MOVES (218)
     final cResult = calloc.allocate<Move>(ffi.sizeOf<Move>() * 256);
+    final numMoves = malloc<ffi.Int>();
 
-    _library.getValidMoves(cResult, cCurrentState.ref, cPreviousStates);
+    _library.getValidMoves(cResult, numMoves, cCurrentState);
 
-    final nbMoves = _library.nbMovesInArray(cResult);
     final result = <ChessMove>[];
 
-    for (int i = 0; i < nbMoves; i++) {
+    for (int i = 0; i < numMoves.value; i++) {
       final move = cResult.elementAt(i);
       final chessMove = ChessMove.fromInt(move.value);
       result.add(chessMove);
     }
 
     malloc.free(cCurrentState);
-    calloc.free(cPreviousStates);
     calloc.free(cResult);
     return result;
   }
@@ -373,38 +414,44 @@ class ChessEngine {
   List<ChessMove> getBestMovesAccordingToComputer(ChessGameState currentState, List<ChessGameState> previousStates) {
     final cCurrentState = _dartStateToCState(currentState);
 
-    int previousStatesSize = previousStates.length + 1;
-    final cPreviousStates = calloc.allocate<GameState>(ffi.sizeOf<GameState>() * previousStatesSize);
-    for (int i = 0; i < previousStates.length; i++) {
-      final pointerToState = _dartStateToCState(previousStates[i]);
-      cPreviousStates.elementAt(i).ref = pointerToState.ref;
-    }
-
-    final cMoves = _library.think(cCurrentState.ref, cPreviousStates);
+    final cMoves = _library.think(cCurrentState);
 
     malloc.free(cCurrentState);
-    calloc.free(cPreviousStates);
     return <ChessMove>[ChessMove.fromInt(cMoves)];
   }
 
-  ffi.Pointer<GameState> _dartStateToCState(ChessGameState state) {
+  ffi.Pointer<ChessGame> _dartStateToCState(ChessGameState state) {
     final array = calloc.allocate<Piece>(ffi.sizeOf<Piece>() * BOARD_SIZE);
-    for (int i = 0; i < state.boardArray.length; i++) {
-      final piece = state.boardArray[i].value;
+    for (int i = 0; i < state.currentState.boardArray.length; i++) {
+      final piece = state.currentState.boardArray[i].value;
       array.elementAt(i).value = piece;
     }
     final board = calloc<Board>();
     _library.fromArray(board, array);
     calloc.free(array);
 
-    final result = malloc<GameState>();
-    result.ref.board = board.ref;
+    final chessPosition = malloc<ChessPosition>();
+    chessPosition.ref.board = board.ref;
     calloc.free(board);
-    result.ref.colorToGo = state.colorToGo.value;
-    result.ref.castlingPerm = state.castlingPerm;
-    result.ref.enPassantTargetSquare = state.enPassantTargetSquare;
-    result.ref.turnsForFiftyRule = state.turnsForFiftyRule;
-    result.ref.nbMoves = state.nbMoves;
+    chessPosition.ref.colorToGo = state.currentState.colorToGo.value;
+    chessPosition.ref.castlingPerm = state.currentState.castlingPerm;
+    chessPosition.ref.enPassantTargetSquare = state.currentState.enPassantTargetSquare;
+    chessPosition.ref.turnsForFiftyRule = state.currentState.turnsForFiftyRule;
+    chessPosition.ref.nbMoves = state.currentState.nbMoves;
+
+    final previousStateCapacity = max(state.previousStates.length, 256);
+    final previousStateCount = state.previousStates.length;
+    final previousStates = malloc.allocate<ZobristKey>(ffi.sizeOf<ZobristKey>() * max(state.previousStates.length, 256));
+    for (int i = 0; i < previousStateCount; i++) {
+      final zobristKey = state.previousStates[i].zobristKey;
+      previousStates.elementAt(i).value = zobristKey;
+    }
+
+    final result = malloc<ChessGame>();
+    result.ref.currentState = chessPosition;
+    result.ref.previousStates = previousStates;
+    result.ref.previousStatesCapacity = previousStateCapacity;
+    result.ref.previousStatesCount = previousStateCount;
 
     return result;
   }
@@ -412,6 +459,7 @@ class ChessEngine {
   void terminate() {
     // We are good programmers and we clean up after ourselves
     _library.magicBitBoardTerminate();
+    _library.zobristKeyTerminate();
   }
 
   @override
