@@ -349,8 +349,7 @@ class Square extends StatelessWidget {
 
   const Square(this.index, this.piece, this.color, this.isHighlighted,
       this.isDraggable, this.rotate, this.droppedPiece,
-      {Key? key})
-      : super(key: key);
+      {super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -4,7 +4,7 @@ class ChessPicture extends StatelessWidget {
   final Widget child;
   final Size size;
 
-  const ChessPicture({Key? key, required this.size, required this.child}) : super(key: key);
+  const ChessPicture({super.key, required this.size, required this.child});
 
   @override
   Widget build(BuildContext context) {

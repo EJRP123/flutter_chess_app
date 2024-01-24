@@ -209,7 +209,7 @@ class ChessPositionState {
     fenString += ((castlingPerm >> 0) & 1 == 1) ? "q" : "";
     fenString += (castlingPerm == 0) ? "-" : "";
     // Add en-passant
-    fenString += " ${positionToAlgebraic(enPassantTargetSquare)}";
+    fenString += (enPassantTargetSquare != 0) ? " ${positionToAlgebraic(enPassantTargetSquare)}" : " -";
     // Add fifty-fifty rule
     fenString += " $turnsForFiftyRule ";
     // Add total number of moves

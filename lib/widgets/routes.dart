@@ -10,10 +10,8 @@ import 'board.dart';
 import 'debug_board.dart';
 
 class MainMenu extends StatelessWidget {
-  const MainMenu({Key? key}) : super(key: key);
+  const MainMenu({super.key});
 
-  // Note: I could create a shared mutable ChessGameState object
-  // However I am scared of what this could be become if this project ever gets larger
   @override
   Widget build(BuildContext context) {
     String whiteAsset =
@@ -86,7 +84,7 @@ class MainMenu extends StatelessWidget {
 
 class GamePage extends StatelessWidget {
   final PieceColor pieceColor;
-  const GamePage({Key? key, required this.pieceColor}) : super(key: key);
+  const GamePage({super.key, required this.pieceColor});
 
   @override
   Widget build(BuildContext context) {

@@ -8,8 +8,7 @@ class PromotionDialog extends StatelessWidget {
   final BuildContext contextOfPopup;
 
   const PromotionDialog(
-      {Key? key, required this.color, required this.contextOfPopup})
-      : super(key: key);
+      {super.key, required this.color, required this.contextOfPopup});
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +38,7 @@ class GameEndDialog extends StatelessWidget {
   final String message;
   final VoidCallback undoMove;
   final VoidCallback resetBoard;
-  const GameEndDialog({Key? key, required this.title, required this.message, required this.undoMove, required this.resetBoard}) : super(key: key);
+  const GameEndDialog({super.key, required this.title, required this.message, required this.undoMove, required this.resetBoard});
 
   @override
   Widget build(BuildContext context) {
