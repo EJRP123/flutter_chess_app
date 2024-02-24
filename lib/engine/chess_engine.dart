@@ -1,19 +1,20 @@
 library chess_engine;
 
 import 'dart:ffi' as ffi;
-import 'dart:math';
 import 'package:ffi/ffi.dart';
 
 export 'chess_engine.dart'
     show
         ChessEngine,
-        ChessGameState,
-        ChessPositionState,
+        ChessGameData,
+        ChessPositionData,
         ChessPiece,
         ChessMove,
         MoveFlag,
         PieceColor,
-        PieceType;
+        PieceUtility,
+        ChessGameUtility,
+        ChessPositionUtility;
 
 part 'c_engine_api.dart';
 part 'c_engine_ffi.dart';

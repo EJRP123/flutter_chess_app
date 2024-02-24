@@ -1,6 +1,8 @@
 import 'dart:collection';
+import 'dart:ffi' as ffi;
 import 'dart:math';
 
+import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -39,9 +41,9 @@ class ChessBoard extends StatefulWidget {
 //    - StockFish analysis?
 
 class _ChessBoardState extends State<ChessBoard> {
-  late final ChessGameState _gameState;
+  late final ChessGameData _gameState;
   late List<ChessMove> _currentLegalMoves;
-  late final LinkedHashMap<ChessMove, ChessGameState> _gameHistory;
+  late final LinkedHashMap<ChessMove, ChessPositionData> _gameHistory;
 
   late int _clickedPieceIndex;
   late final List<bool> _highlightedSquares;
@@ -55,24 +57,26 @@ class _ChessBoardState extends State<ChessBoard> {
     super.initState();
     _engine = ChessEngine();
     _gameState = _engine.startingGameState();
-    _gameHistory = LinkedHashMap<ChessMove, ChessGameState>();
+    _gameHistory = LinkedHashMap<ChessMove, ChessPositionData>();
     _highlightedSquares = List.filled(81, false);
     _currentLegalMoves = _engine.getMovesFromState(_gameState);
     _clickedPieceIndex = -1;
-    _aiPieceColor = widget.humanPieceColor == PieceColor.white
-        ? PieceColor.black
-        : PieceColor.white;
+    _aiPieceColor = widget.humanPieceColor == PieceCharacteristics.WHITE
+        ? PieceCharacteristics.BLACK
+        : PieceCharacteristics.WHITE;
     resetBoard();
   }
 
+  // TODO: Double free bug when disposing it seems like
   @override
   void dispose() {
-    super.dispose();
-    _engine.terminate();
-  }
 
-  List<ChessGameState> get _previousStates {
-    return _gameHistory.values.toList();
+    for (final position in _gameHistory.values) {
+      malloc.free(position);
+    }
+
+    _engine.terminate(_gameState);
+    super.dispose();
   }
 
   @override
@@ -99,7 +103,7 @@ class _ChessBoardState extends State<ChessBoard> {
       child: AspectRatio(
         aspectRatio: 1.0,
         child: Transform.rotate(
-          angle: _aiPieceColor == PieceColor.white ? pi : 0,
+          angle: _aiPieceColor == PieceCharacteristics.WHITE ? pi : 0,
           child: LayoutGrid(
               columnSizes: List.filled(8, 8.fr),
               rowSizes: List.filled(8, 8.fr),
@@ -119,7 +123,7 @@ class _ChessBoardState extends State<ChessBoard> {
                         Colors.yellowAccent.withOpacity(0.5), color);
                   }
                 }
-                final ChessPiece piece = _gameState.currentState.boardArray[index];
+                final ChessPiece piece = _gameState.currentState.pieceAt(index);
                 final isDraggable = piece.color != _aiPieceColor;
                 final isHighlighted = _highlightedSquares[index];
                 return GestureDetector(
@@ -131,7 +135,7 @@ class _ChessBoardState extends State<ChessBoard> {
                         return; // To get no await bugs
                       }
 
-                      if (piece.type != PieceType.none && isDraggable) {
+                      if (piece.type != PieceUtility.none && isDraggable) {
                         // We clicked our own piece
                         clickedAPiece(index);
                       } else {
@@ -148,7 +152,7 @@ class _ChessBoardState extends State<ChessBoard> {
                         color,
                         isHighlighted,
                         isDraggable,
-                        _aiPieceColor == PieceColor.white,
+                        _aiPieceColor == PieceCharacteristics.WHITE,
                         droppedPiece));
               })),
         ),
@@ -200,19 +204,19 @@ class _ChessBoardState extends State<ChessBoard> {
   }
 
   bool computeGameEnd() {
-    if (_gameState.isDraw()) {
+    if (_engine.isDraw(_gameState)) {
       draw();
       return true;
     }
 
-    if (_gameState.isStalemate()) {
+    if (_engine.isStalemate(_gameState)) {
       stalemate();
       return true;
     }
-    if (_gameState.isCheckmate()) {
-      checkmate(_gameState.currentState.colorToGo == PieceColor.white
-          ? PieceColor.black
-          : PieceColor.white);
+    if (_engine.isCheckmate(_gameState)) {
+      checkmate(_gameState.currentState.colorToGo == PieceCharacteristics.WHITE
+          ? PieceCharacteristics.BLACK
+          : PieceCharacteristics.WHITE);
       return true;
     }
     return false;
@@ -244,13 +248,13 @@ class _ChessBoardState extends State<ChessBoard> {
             ));
   }
 
-  void checkmate(PieceColor color) {
+  void checkmate(PieceColor whoWon) {
     showDialog(
         context: context,
         builder: (context) => GameEndDialog(
               title: "There is a winner!",
               message: "It is a great honor to inform you that "
-                  "${color == PieceColor.white ? "white" : "black"} has won! "
+                  "${whoWon == PieceCharacteristics.WHITE ? "white" : "black"} has won! "
                   "You are truly a player with immense skill and you should "
                   "celebrate this victory over the enemy with a dance!",
               undoMove: () => undoMove(),
@@ -260,8 +264,16 @@ class _ChessBoardState extends State<ChessBoard> {
 
   void resetBoard() {
     setState(() {
-      _gameState.copyFrom(_engine.startingGameState());
+      // To avoid memory leaks
+      malloc.free(_gameState.ref.previousStates);
+      _engine.setupGameFromFenString(_gameState, startingFenString);
+
+      for (final position in _gameHistory.values) {
+        malloc.free(position);
+      }
       _gameHistory.clear();
+      _gameState.ref.previousStatesCount = 0;
+
       _currentLegalMoves =
           _engine.getMovesFromState(_gameState);
       _clickedPieceIndex = -1;
@@ -274,18 +286,26 @@ class _ChessBoardState extends State<ChessBoard> {
 
   void undoMove() {
     if (_gameHistory.length <= 1) return;
-    if (_gameState.currentState.colorToGo == _aiPieceColor) {
-      _gameState.copyFrom(_gameHistory.values.last);
-      _gameHistory.remove(_gameHistory.keys.last); // Undoing the player move
+
+    // It is never the bots turn to go (we check that before this function is called
+    final removedValue = _gameHistory.remove(_gameHistory.keys.last); // Undoing the ai move
+    malloc.free(removedValue!);
+    _gameState.ref.previousStatesCount--;
+
+    if (_gameHistory.isNotEmpty) {
+      final previousPosition = _gameHistory.values.last;
+      _gameState.currentState.copyFrom(previousPosition);
+
+      final removedValue = _gameHistory.remove(_gameHistory.keys.last); // Undoing the player move
+      malloc.free(removedValue!);
+      _gameState.ref.previousStatesCount--;
+
     } else {
-      _gameHistory.remove(_gameHistory.keys.last); // Undoing the ai move
-      if (_gameHistory.isNotEmpty) {
-        _gameState.copyFrom(_gameHistory.values.last);
-        _gameHistory.remove(_gameHistory.keys.last); // Undoing the player move
-      } else {
-        _gameState.copyFrom(_engine.startingGameState());
-      }
+      // To avoid memory leaks
+      malloc.free(_gameState.ref.previousStates);
+      _engine.setupGameFromFenString(_gameState, startingFenString);
     }
+
 
     setState(() {
       _currentLegalMoves =
@@ -320,7 +340,7 @@ class _ChessBoardState extends State<ChessBoard> {
 
   void makeMove(ChessMove move) {
     setState(() {
-      _gameHistory[move] = ChessGameState.clone(_gameState);
+      _gameHistory[move] = _gameState.currentState.clone();
       _engine.makeMove(move, _gameState);
       _currentLegalMoves =
           _engine.getMovesFromState(_gameState);
@@ -330,8 +350,14 @@ class _ChessBoardState extends State<ChessBoard> {
 
   // TODO AI is very slow, like slower without move ordering
   Future<void> makeAiResponseMove() async {
+
+    final keys = <int>[];
+    for (int i = 0; i < _gameState.ref.previousStatesCount; i++) {
+      keys.add(_gameState.ref.previousStates.elementAt(i).value);
+    }
+
     final responseMoves = await compute<AiMoveParam, List<ChessMove>>(
-        getMoveFromAiIsolate, AiMoveParam(_gameState, _previousStates));
+        getMoveFromAiIsolate, AiMoveParam(keys, _gameState.currentState.toFenString()));
     makeMove(responseMoves[Random().nextInt(responseMoves.length)]);
   }
 }
@@ -367,7 +393,7 @@ class Square extends StatelessWidget {
                       alignment: Alignment.center,
                       fit: StackFit.expand,
                       children: [
-                        if (piece.type != PieceType.none)
+                        if (piece.type != PieceUtility.none)
                           if (isDraggable)
                             getDraggablePicture()
                           else
@@ -403,10 +429,10 @@ class Square extends StatelessWidget {
 
   Widget getPieceSVG(bool keepRotation) {
     String assetName =
-        "assets/images/${piece.toString().toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/${piece.stringRepresentation().toLowerCase().replaceAll(" ", "_")}.svg";
     return Transform.rotate(
       angle: keepRotation && rotate ? pi : 0,
-      child: SvgPicture.asset(assetName, semanticsLabel: piece.toString()),
+      child: SvgPicture.asset(assetName, semanticsLabel: piece.stringRepresentation()),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:ffi';
 import 'dart:io';
 
+import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
@@ -15,9 +16,9 @@ class MainMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String whiteAsset =
-        "assets/images/${ChessPiece(PieceColor.white, PieceType.king).toString().toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/white_king.svg";
     String blackAsset =
-        "assets/images/${ChessPiece(PieceColor.black, PieceType.king).toString().toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/black_king.svg";
     return Material(
       color: Colors.grey,
       child: Row(
@@ -27,20 +28,20 @@ class MainMenu extends StatelessWidget {
           Expanded(
             child: InkWell(
                 onTap: () {
-                  Navigator.push(context, getRouteBuilder(PieceColor.white));
+                  Navigator.push(context, getRouteBuilder(PieceCharacteristics.WHITE));
                 },
                 child: SvgPicture.asset(whiteAsset,
                     semanticsLabel:
-                    ChessPiece(PieceColor.white, PieceType.king)
+                    PieceUtility.fromColorAndType(PieceCharacteristics.WHITE, PieceCharacteristics.KING)
                             .toString())),
           ),
           Expanded(
               child: InkWell(
             onTap: () {
-              Navigator.push(context, getRouteBuilder(PieceColor.black));
+              Navigator.push(context, getRouteBuilder(PieceCharacteristics.BLACK));
             },
             child: SvgPicture.asset(blackAsset,
-                semanticsLabel: ChessPiece(PieceColor.black, PieceType.king)
+                semanticsLabel: PieceUtility.fromColorAndType(PieceCharacteristics.BLACK, PieceCharacteristics.KING)
                     .toString()),
           )),
           Expanded(
@@ -91,7 +92,7 @@ class GamePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.blueGrey,
-        title: Text("Playing ${pieceColor.name} against AI"),
+        title: Text("Playing ${pieceColor == PieceCharacteristics.WHITE ? "white" : "black"} against AI"),
       ),
       body: Center(child: ChessBoard(pieceColor)),
       backgroundColor: Colors.blueGrey,
@@ -121,16 +122,34 @@ class DebugPage extends StatelessWidget {
 List<ChessMove> getMoveFromAiIsolate(AiMoveParam param) {
   ChessEngine.init(
       dynamicLibProvider()); // Since this will be called in another isolate
-  final result = ChessEngine().getBestMovesAccordingToComputer(param.state, param.previousStates);
+
+  final state = ChessEngine().setupGameFromFenString(nullptr, param.fenString);
+
+  if (state.ref.previousStatesCapacity < param.keys.length) {
+    state.ref.previousStatesCapacity = param.keys.length;
+    // The previousStates array is always empty
+    malloc.free(state.ref.previousStates);
+
+    final biggerPrevStates = malloc.allocate<ZobristKey>(sizeOf<ZobristKey>() * state.ref.previousStatesCapacity);
+    state.ref.previousStates = biggerPrevStates;
+  }
+
+  for (int i = 0; i < param.keys.length; i++) {
+    state.ref.previousStates.elementAt(i).value = param.keys[i];
+  }
+
+  final result = ChessEngine().getBestMovesAccordingToComputer(state);
+  ChessEngine().terminate(state);
   return result;
 }
 
-// I need to do this to use the Flutter compute function with multiple param
+// I do this so that if more parameters are needed it will be easy to add them
 class AiMoveParam {
-  final ChessGameState state;
-  final List<ChessGameState> previousStates;
+  final List<int> keys;
 
-  AiMoveParam(this.state, this.previousStates);
+  final String fenString;
+
+  AiMoveParam(this.keys, this.fenString);
 }
 
 DynamicLibrary dynamicLibProvider() {

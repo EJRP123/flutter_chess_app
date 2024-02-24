@@ -1,5 +1,6 @@
-import 'dart:collection';
+import 'dart:ffi' as ffi;
 
+import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_layout_grid/flutter_layout_grid.dart';
@@ -22,11 +23,12 @@ class DebugBoard extends StatefulWidget {
   State<DebugBoard> createState() => _DebugBoardState();
 }
 
-// TODO: Test the fen string input and ctrl+z shortcut
+// TODO: UndoMove does not work as intended
 class _DebugBoardState extends State<DebugBoard> {
-  late final ChessGameState _gameState;
+  late final ChessGameData _gameState;
   late List<ChessMove> _currentLegalMoves;
-  late final LinkedHashMap<ChessMove, ChessGameState> _gameHistory;
+  late List<ChessMove> _movesMade;
+  late final List<ChessPositionData> _gameHistory;
 
   late int _clickedPieceIndex;
   late final List<bool> _highlightedSquares;
@@ -40,7 +42,8 @@ class _DebugBoardState extends State<DebugBoard> {
     super.initState();
     _engine = ChessEngine();
     _gameState = _engine.startingGameState();
-    _gameHistory = LinkedHashMap<ChessMove, ChessGameState>();
+    _gameHistory = <ChessPositionData>[];
+    _movesMade = <ChessMove>[];
     _highlightedSquares = List.filled(81, false);
     _currentLegalMoves = _engine.getMovesFromState(_gameState);
     _clickedPieceIndex = -1;
@@ -51,7 +54,11 @@ class _DebugBoardState extends State<DebugBoard> {
   @override
   void dispose() {
     // Clean up the controller when the widget is disposed.
-    _engine.terminate();
+    for (final position in _gameHistory) {
+      malloc.free(position);
+    }
+
+    _engine.terminate(_gameState);
     _myController.dispose();
     super.dispose();
   }
@@ -96,15 +103,15 @@ class _DebugBoardState extends State<DebugBoard> {
                   }
                 }
 
-                if (_gameHistory.isNotEmpty) {
-                  if (index == _gameHistory.keys.last.startSquare ||
-                      index == _gameHistory.keys.last.endSquare) {
+                if (_movesMade.isNotEmpty && _gameHistory.length == _movesMade.length) {
+                  if ((index == _movesMade.last.startSquare || index == _movesMade.last.endSquare) &&
+                      (_movesMade.last.startSquare != _movesMade.last.endSquare)) {
                     color = Color.alphaBlend(
                         Colors.yellowAccent.withOpacity(0.5), color);
                   }
                 }
 
-                final ChessPiece piece = _gameState.currentState.boardArray[index];
+                final ChessPiece piece = _gameState.currentState.pieceAt(index);
                 final isHighlighted = _highlightedSquares[index];
                 return GestureDetector(
                     onTap: () {
@@ -115,7 +122,7 @@ class _DebugBoardState extends State<DebugBoard> {
                         return; // To get no await bugs
                       }
 
-                      if (piece.type != PieceType.none) {
+                      if (piece.type != PieceUtility.none) {
                         // We clicked a piece
                         clickedAPiece(index);
                       } else {
@@ -137,15 +144,20 @@ class _DebugBoardState extends State<DebugBoard> {
               controller: _myController,
               onEditingComplete: () {
                 try {
+
                   setState(() {
-                    // TODO: Set it so that it remembers what the state was before
-                    _gameState.copyFrom(_engine.fromFenString(_myController.text));
+
+                    _gameHistory.add(_gameState.currentState.clone());
+
+                    malloc.free(_gameState.ref.previousStates);
+                    _engine.setupGameFromFenString(_gameState, _myController.text);
 
                     _currentLegalMoves =
                         _engine.getMovesFromState(_gameState);
                     _clickedPieceIndex = -1;
                     removeAllHighlightedSquares();
                   });
+
                 } catch (_) {
 
                 }
@@ -184,8 +196,16 @@ class _DebugBoardState extends State<DebugBoard> {
 
   void resetBoard() {
     setState(() {
-      _gameState.copyFrom(_engine.startingGameState());
+      // To avoid memory leaks
+      malloc.free(_gameState.ref.previousStates);
+      _engine.setupGameFromFenString(_gameState, startingFenString);
+
+      for (final position in _gameHistory) {
+        malloc.free(position);
+      }
       _gameHistory.clear();
+      _movesMade.clear();
+
       _currentLegalMoves =
           _engine.getMovesFromState(_gameState);
       _clickedPieceIndex = -1;
@@ -194,17 +214,15 @@ class _DebugBoardState extends State<DebugBoard> {
   }
 
   void undoMove() {
-    if (_gameHistory.isEmpty) {
-      return;
-    }
-    
-    if (_gameState.previousStates.isNotEmpty) {
-      final newState = _gameState.previousStates.removeLast();
-      _gameState.currentState.copyFrom(newState);
-    } else {
-      _gameState.copyFrom(_gameHistory.values.last);
-    }
-    _gameHistory.remove(_gameHistory.keys.last); // Undoing the last move made
+    if (_gameHistory.isEmpty) { return; }
+
+    final previousPosition = _gameHistory.last;
+    _gameState.currentState.copyFrom(previousPosition);
+
+    final removedValue = _gameHistory.removeLast(); // Undoing the last move
+    malloc.free(removedValue);
+    _gameState.ref.previousStatesCount--;
+    // TODO: Check if we need to remove a move in here from _movesMade
 
     setState(() {
       _currentLegalMoves =
@@ -227,7 +245,8 @@ class _DebugBoardState extends State<DebugBoard> {
 
   void makeMove(ChessMove move) {
     setState(() {
-      _gameHistory[move] = ChessGameState.clone(_gameState);
+      _gameHistory.add(_gameState.currentState.clone());
+      _movesMade.add(move);
       _engine.makeMove(move, _gameState);
       _currentLegalMoves =
           _engine.getMovesFromState(_gameState);
@@ -275,9 +294,7 @@ class _Square extends StatelessWidget {
   final _DroppedPiece droppedPiece;
 
   const _Square(
-      this.index, this.piece, this.color, this.isHighlighted, this.droppedPiece,
-      {Key? key})
-      : super(key: key);
+      this.index, this.piece, this.color, this.isHighlighted, this.droppedPiece);
 
   @override
   Widget build(BuildContext context) {
@@ -296,7 +313,7 @@ class _Square extends StatelessWidget {
                       fit: StackFit.expand,
                       children: [
                         Text("${positionToAlgebraic(index)} $index"),
-                        if (piece.type != PieceType.none) getDraggablePicture(),
+                        if (piece.type != PieceUtility.none) getDraggablePicture(),
                         if (isHighlighted)
                           Icon(
                             Icons.circle,
@@ -328,8 +345,8 @@ class _Square extends StatelessWidget {
 
   Widget getPieceSVG(bool keepRotation) {
     String assetName =
-        "assets/images/${piece.toString().toLowerCase().replaceAll(" ", "_")}.svg";
-    return SvgPicture.asset(assetName, semanticsLabel: piece.toString());
+        "assets/images/${piece.stringRepresentation().toLowerCase().replaceAll(" ", "_")}.svg";
+    return SvgPicture.asset(assetName, semanticsLabel: piece.stringRepresentation());
   }
 }
 

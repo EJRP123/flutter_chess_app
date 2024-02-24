@@ -15,20 +15,20 @@ class PromotionDialog extends StatelessWidget {
     return AlertDialog(
       actionsAlignment: MainAxisAlignment.center,
       actions: [
-        getPieceChoice(ChessPiece(color, PieceType.queen), MoveFlag.promoteToQueen),
-        getPieceChoice(ChessPiece(color, PieceType.knight), MoveFlag.promoteToKnight),
-        getPieceChoice(ChessPiece(color, PieceType.rook), MoveFlag.promoteToRook),
-        getPieceChoice(ChessPiece(color, PieceType.bishop), MoveFlag.promoteToBishop),
+        getPieceChoice(PieceUtility.fromColorAndType(color, PieceCharacteristics.QUEEN), MoveFlag.promoteToQueen),
+        getPieceChoice(PieceUtility.fromColorAndType(color, PieceCharacteristics.KNIGHT), MoveFlag.promoteToKnight),
+        getPieceChoice(PieceUtility.fromColorAndType(color, PieceCharacteristics.ROOK), MoveFlag.promoteToRook),
+        getPieceChoice(PieceUtility.fromColorAndType(color, PieceCharacteristics.BISHOP), MoveFlag.promoteToBishop),
       ],
     );
   }
 
   Widget getPieceChoice(ChessPiece piece, MoveFlag flag) {
     String assetName =
-        "assets/images/${piece.toString().toLowerCase().replaceAll(" ", "_")}.svg";
+        "assets/images/${piece.stringRepresentation().toLowerCase().replaceAll(" ", "_")}.svg";
     return GestureDetector(
       onTap: () => Navigator.pop(contextOfPopup, flag),
-      child: SvgPicture.asset(assetName, semanticsLabel: piece.toString()),
+      child: SvgPicture.asset(assetName, semanticsLabel: piece.stringRepresentation()),
     );
   }
 }
