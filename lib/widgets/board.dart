@@ -20,9 +20,7 @@ class ChessBoard extends StatefulWidget {
 
   final PieceColor humanPieceColor;
 
-  ChessBoard(this.humanPieceColor, {super.key}) {
-    ChessEngine.init(dynamicLibProvider());
-  }
+  const ChessBoard(this.humanPieceColor, {super.key});
 
   @override
   State<ChessBoard> createState() => _ChessBoardState();
@@ -67,16 +65,15 @@ class _ChessBoardState extends State<ChessBoard> {
     resetBoard();
   }
 
-  // TODO: Double free bug when disposing it seems like
   @override
-  void dispose() {
+  void deactivate() {
 
     for (final position in _gameHistory.values) {
       malloc.free(position);
     }
 
-    _engine.terminate(_gameState);
-    super.dispose();
+    _engine.freeChessGame(_gameState);
+    super.deactivate();
   }
 
   @override
@@ -102,12 +99,12 @@ class _ChessBoardState extends State<ChessBoard> {
       },
       child: AspectRatio(
         aspectRatio: 1.0,
-        child: Transform.rotate(
-          angle: _aiPieceColor == PieceCharacteristics.WHITE ? pi : 0,
-          child: LayoutGrid(
+        child: LayoutGrid(
               columnSizes: List.filled(8, 8.fr),
               rowSizes: List.filled(8, 8.fr),
               children: List.generate(64, (index) {
+                final realIndex = _aiPieceColor == PieceCharacteristics.WHITE ? 63 - index : index;
+
                 if (index % 8 == 0) changeColor = !changeColor;
                 var color = (index % 2 == 0)
                     ? (changeColor)
@@ -116,28 +113,32 @@ class _ChessBoardState extends State<ChessBoard> {
                     : (changeColor)
                         ? widget.color2
                         : widget.color1;
+
                 if (_gameHistory.keys.isNotEmpty) {
-                  if (index == _gameHistory.keys.last.startSquare ||
-                      index == _gameHistory.keys.last.endSquare) {
+
+                  if (realIndex == _gameHistory.keys.last.startSquare ||
+                      realIndex == _gameHistory.keys.last.endSquare) {
                     color = Color.alphaBlend(
                         Colors.yellowAccent.withOpacity(0.5), color);
                   }
+
                 }
-                final ChessPiece piece = _gameState.currentState.pieceAt(index);
+
+                final ChessPiece piece = _gameState.currentState.pieceAt(realIndex);
                 final isDraggable = piece.color != _aiPieceColor;
-                final isHighlighted = _highlightedSquares[index];
+                final isHighlighted = _highlightedSquares[realIndex];
                 return GestureDetector(
                     onTap: () {
                       // This is at the top so that this behaviour triggers first
                       if (isHighlighted) {
                         // We clicked a highlighted squares
-                        clickedHighlightedSquare(index);
+                        clickedHighlightedSquare(realIndex);
                         return; // To get no await bugs
                       }
 
                       if (piece.type != PieceUtility.none && isDraggable) {
                         // We clicked our own piece
-                        clickedAPiece(index);
+                        clickedAPiece(realIndex);
                       } else {
                         // To get a clean board back
                         setState(() {
@@ -147,7 +148,7 @@ class _ChessBoardState extends State<ChessBoard> {
                       }
                     },
                     child: Square(
-                        index,
+                        realIndex,
                         piece,
                         color,
                         isHighlighted,
@@ -155,7 +156,6 @@ class _ChessBoardState extends State<ChessBoard> {
                         _aiPieceColor == PieceCharacteristics.WHITE,
                         droppedPiece));
               })),
-        ),
       ),
     );
   }
@@ -348,7 +348,6 @@ class _ChessBoardState extends State<ChessBoard> {
     });
   }
 
-  // TODO AI is very slow, like slower without move ordering
   Future<void> makeAiResponseMove() async {
 
     final keys = <int>[];
@@ -397,7 +396,7 @@ class Square extends StatelessWidget {
                           if (isDraggable)
                             getDraggablePicture()
                           else
-                            getPieceSVG(true),
+                            getPieceSVG(),
                         if (isHighlighted)
                           Icon(
                             Icons.circle,
@@ -419,21 +418,18 @@ class Square extends StatelessWidget {
         dragAnchorStrategy: pointerDragAnchorStrategy,
         feedback: ChessPicture(
           size: Size(constraint.maxWidth, constraint.maxHeight),
-          child: getPieceSVG(false),
+          child: getPieceSVG(),
         ),
         childWhenDragging: Container(),
-        child: getPieceSVG(true),
+        child: getPieceSVG(),
       );
     });
   }
 
-  Widget getPieceSVG(bool keepRotation) {
+  Widget getPieceSVG() {
     String assetName =
         "assets/images/${piece.stringRepresentation().toLowerCase().replaceAll(" ", "_")}.svg";
-    return Transform.rotate(
-      angle: keepRotation && rotate ? pi : 0,
-      child: SvgPicture.asset(assetName, semanticsLabel: piece.stringRepresentation()),
-    );
+    return SvgPicture.asset(assetName, semanticsLabel: piece.stringRepresentation());
   }
 }
 

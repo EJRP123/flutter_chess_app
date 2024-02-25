@@ -218,15 +218,6 @@ class ChessEngine {
   ChessEngine.init(ffi.DynamicLibrary dynamicLibrary) {
     if (_onlyInstance == null) {
       _library = _NativeLibrary(dynamicLibrary);
-      final wrappedPrintPointer = ffi.Pointer.fromFunction<_wrappedPrint_C>(wrappedPrint);
-      _library.initializeFFILogging(wrappedPrintPointer);
-      // IMPORTANT: Order of these initialization matters!
-      // If magicBitBoardInitialize is not last the memory seems to get corrupted
-      // The only thing I can see is that since the rookPseudoLegalMovesBitBoard pointer is so big (~700kb)
-      // then its size has an effect. Else I do not know
-      _library.zobristKeyInitialize();
-      _library.pieceSquareTableInitialize();
-      _library.magicBitBoardInitialize();
       _onlyInstance = this;
     }
   }
@@ -238,6 +229,18 @@ class ChessEngine {
           "You need to call ChessEngine.init() and provide a dynamic library before you can use the engine!");
     }
     return _onlyInstance!;
+  }
+
+  void libraryInit() {
+    final wrappedPrintPointer = ffi.Pointer.fromFunction<_wrappedPrint_C>(wrappedPrint);
+    _library.initializeFFILogging(wrappedPrintPointer);
+    // IMPORTANT: Order of these initialization matters!
+    // If magicBitBoardInitialize is not last the memory seems to get corrupted
+    // The only thing I can see is that since the rookPseudoLegalMovesBitBoard pointer is so big (~700kb)
+    // then its size has an effect. Else I do not know
+    _library.zobristKeyInitialize();
+    _library.pieceSquareTableInitialize();
+    _library.magicBitBoardInitialize();
   }
 
   /// Allocates a new ChessGameData object and puts the starting game state in it
@@ -333,9 +336,13 @@ class ChessEngine {
 
   bool isDraw(ChessGameData game) => isDrawByFiftyMoveRule(game) || isDrawByRepetition(game);
 
-  void terminate(ChessGameData state) {
+  void freeChessGame(ChessGameData state) {
+    _library._freeChessGame(state);
+  }
+
+  void terminate() {
+    print('C library terminated');
     // We are good programmers and we clean up after ourselves
-    _library.freeChessGame(state);
     _library.zobristKeyTerminate();
     _library.magicBitBoardTerminate();
   }

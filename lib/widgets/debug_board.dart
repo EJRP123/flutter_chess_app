@@ -9,15 +9,12 @@ import 'package:flutter_svg/svg.dart';
 import '../engine/chess_engine.dart';
 import 'dialogs.dart';
 import 'draggable_widget.dart';
-import 'routes.dart';
 
 class DebugBoard extends StatefulWidget {
   final Color color1 = const Color.fromRGBO(235, 235, 208, 1.0);
   final Color color2 = const Color.fromRGBO(119, 148, 85, 1.0);
 
-  DebugBoard({super.key}) {
-    ChessEngine.init(dynamicLibProvider());
-  }
+  const DebugBoard({super.key});
 
   @override
   State<DebugBoard> createState() => _DebugBoardState();
@@ -58,7 +55,7 @@ class _DebugBoardState extends State<DebugBoard> {
       malloc.free(position);
     }
 
-    _engine.terminate(_gameState);
+    _engine.freeChessGame(_gameState);
     _myController.dispose();
     super.dispose();
   }

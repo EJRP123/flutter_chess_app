@@ -5,10 +5,14 @@ import 'engine/chess_engine.dart';
 
 void main() {
   ChessEngine.init(dynamicLibProvider());
+  ChessEngine().libraryInit();
 
   ChessGameData chessGameData = ChessEngine().startingGameState();
   final moves = ChessEngine().getMovesFromState(chessGameData);
-  print(moves);
+  print("There are ${moves.length} moves in the position");
+
+  ChessEngine().freeChessGame(chessGameData);
+  ChessEngine().terminate();
 }
 
 DynamicLibrary dynamicLibProvider() {
